@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   محامي نفسك — الهوية البصرية
+   طابع قانوني مهني: كحلي عميق للثقة، زمردي للحسم، ذهبي خفيف للتمييز.
+   ========================================================================== */
+
+@theme {
+  /* اللون الأساسي — كحلي قانوني */
+  --color-brand-50: #eff6fb;
+  --color-brand-100: #d8e9f5;
+  --color-brand-200: #b3d2e9;
+  --color-brand-300: #83b3d7;
+  --color-brand-400: #4f8dbf;
+  --color-brand-500: #2f6d9f;
+  --color-brand-600: #205684;
+  --color-brand-700: #1a446b;
+  --color-brand-800: #163a5a;
+  --color-brand-900: #0f2942;
+  --color-brand-950: #091b2d;
+
+  /* لون التمييز — ذهبي هادئ */
+  --color-gold-50: #fdf8ed;
+  --color-gold-100: #f8ecd0;
+  --color-gold-200: #f0d79c;
+  --color-gold-300: #e5bd64;
+  --color-gold-400: #d9a33c;
+  --color-gold-500: #c9882a;
+  --color-gold-600: #a86a22;
+  --color-gold-700: #854f20;
+
+  --font-sans: "Tajawal", "Cairo", "Segoe UI", "Tahoma", system-ui, sans-serif;
+
+  --radius-card: 1.25rem;
+}
+
+:root {
+  --gradient-hero: linear-gradient(180deg, #f7fafd 0%, #ffffff 100%);
+  --gradient-brand: linear-gradient(135deg, #1a446b 0%, #205684 50%, #2f6d9f 100%);
+  --shadow-soft: 0 4px 20px -6px rgba(15, 41, 66, 0.12);
+  --shadow-lift: 0 18px 45px -18px rgba(15, 41, 66, 0.28);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #ffffff;
+  color: #0f2942;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ------------------------------- مكوّنات مساعدة ------------------------------- */
+
+.brand-gradient {
+  background-image: var(--gradient-brand);
+}
+
+.text-gradient {
+  background-image: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.card-soft {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift);
+  border-color: var(--color-brand-300);
+}
+
+.btn-brand {
+  background-color: var(--color-brand-700);
+  color: #fff;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.6rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: var(--shadow-soft);
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-brand:hover {
+  background-color: var(--color-brand-800);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
+}
+
+.btn-ghost {
+  border: 1.5px solid var(--color-brand-200);
+  color: var(--color-brand-700);
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 0.7rem 1.5rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-ghost:hover {
+  background: var(--color-brand-50);
+  border-color: var(--color-brand-400);
+}
+
+/* حقول الإدخال */
+.field {
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.95rem;
+  color: #0f2942;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgba(47, 109, 159, 0.15);
+}
+
+.label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 0.35rem;
+}
+
+/* شارات */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* حركة ظهور */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: rise-in 0.4s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-400);
+}
+
+/* الطباعة */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

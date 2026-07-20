@@ -1,0 +1,52 @@
+[
+  {
+    "id": "sec-procedural",
+    "slug": "procedural",
+    "name": "القسم الإجرائي",
+    "description": "الإجراءات والرسوم والمواعيد التي تحتاجها قبل رفع أي دعوى أو أثناء نظرها.",
+    "icon": "gavel",
+    "accent": "violet",
+    "order": 1,
+    "published": true
+  },
+  {
+    "id": "sec-family",
+    "slug": "family",
+    "name": "قسم القضايا الأسرية",
+    "description": "الحضانة والنفقة والتركات وما يتصل بها من مسائل الأحوال الشخصية.",
+    "icon": "heart",
+    "accent": "rose",
+    "order": 2,
+    "published": true
+  },
+  {
+    "id": "sec-labor",
+    "slug": "labor",
+    "name": "قسم القضايا العمالية",
+    "description": "عقود العمل ومكافأة نهاية الخدمة والحقوق العمالية والتأمينات.",
+    "icon": "briefcase",
+    "accent": "mint",
+    "order": 3,
+    "published": true
+  },
+  {
+    "id": "sec-criminal",
+    "slug": "criminal",
+    "name": "قسم القضايا الجزائية",
+    "description": "قيد التجهيز — سيُضاف محتوى هذا القسم لاحقًا.",
+    "icon": "shield",
+    "accent": "sky",
+    "order": 4,
+    "published": true
+  },
+  {
+    "id": "sec-commercial",
+    "slug": "commercial",
+    "name": "قسم القضايا التجارية",
+    "description": "الوكالات التجارية ونظام الإفلاس ومسائل الأعمال.",
+    "icon": "chart",
+    "accent": "amber",
+    "order": 5,
+    "published": true
+  }
+]
