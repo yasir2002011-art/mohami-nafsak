@@ -421,6 +421,7 @@ function ResultCard({
               {engine.lastReviewedAt
                 ? ` · آخر مراجعة قانونية: ${engine.lastReviewedAt}`
                 : " · لم تُسجَّل مراجعة قانونية بعد"}
+              {engine.legalReviewer && ` · المراجع القانوني: ${engine.legalReviewer}`}
             </p>
           </section>
 

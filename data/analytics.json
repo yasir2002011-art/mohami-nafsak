@@ -4,5 +4,82 @@
     "type": "tool_start",
     "createdAt": "2026-07-19T17:24:51.532Z",
     "toolId": "tool-custody"
+  },
+  {
+    "id": "ev-1784530887463-zmb7m6",
+    "type": "tool_start",
+    "createdAt": "2026-07-20T07:01:27.463Z",
+    "toolId": "tool-contract-type"
+  },
+  {
+    "id": "ev-1784530888326-o0eo9g",
+    "type": "tool_complete",
+    "createdAt": "2026-07-20T07:01:28.326Z",
+    "toolId": "tool-contract-type",
+    "resultId": "r-limited-nonsaudi"
+  },
+  {
+    "id": "ev-1784530888341-4lu0hw",
+    "type": "tool_complete",
+    "createdAt": "2026-07-20T07:01:28.341Z",
+    "toolId": "tool-contract-type",
+    "resultId": "r-limited-nonsaudi"
+  },
+  {
+    "id": "ev-1784532023912-0alxl5",
+    "type": "tool_start",
+    "createdAt": "2026-07-20T07:20:23.912Z",
+    "toolId": "tool-custody"
+  },
+  {
+    "id": "ev-1784532057624-wzxuqk",
+    "type": "tool_start",
+    "createdAt": "2026-07-20T07:20:57.624Z",
+    "toolId": "tool-contract-type"
+  },
+  {
+    "id": "ev-1784532058338-epk6r1",
+    "type": "tool_complete",
+    "createdAt": "2026-07-20T07:20:58.338Z",
+    "toolId": "tool-custody"
+  },
+  {
+    "id": "ev-1784532058553-pkbdmu",
+    "type": "tool_complete",
+    "createdAt": "2026-07-20T07:20:58.553Z",
+    "toolId": "tool-contract-type",
+    "resultId": "r-limited-nonsaudi"
+  },
+  {
+    "id": "ev-1784532137533-344geu",
+    "type": "tool_start",
+    "createdAt": "2026-07-20T07:22:17.533Z",
+    "toolId": "tool-contract-type"
+  },
+  {
+    "id": "ev-1784532138407-nepaem",
+    "type": "tool_complete",
+    "createdAt": "2026-07-20T07:22:18.407Z",
+    "toolId": "tool-contract-type",
+    "resultId": "r-limited-nonsaudi"
+  },
+  {
+    "id": "ev-1784532138434-i6jt0g",
+    "type": "tool_complete",
+    "createdAt": "2026-07-20T07:22:18.434Z",
+    "toolId": "tool-contract-type",
+    "resultId": "r-limited-nonsaudi"
+  },
+  {
+    "id": "ev-1784532160388-vr0qd7",
+    "type": "tool_start",
+    "createdAt": "2026-07-20T07:22:40.388Z",
+    "toolId": "tool-custody"
+  },
+  {
+    "id": "ev-1784532163364-bx2atm",
+    "type": "tool_complete",
+    "createdAt": "2026-07-20T07:22:43.365Z",
+    "toolId": "tool-custody"
   }
 ]

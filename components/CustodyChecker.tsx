@@ -826,6 +826,7 @@ function ResultView({
                   {config.lastReviewedAt
                     ? ` · آخر مراجعة قانونية: ${config.lastReviewedAt}`
                     : " · لم تُسجَّل مراجعة قانونية بعد"}
+                  {config.legalReviewer && ` · المراجع القانوني: ${config.legalReviewer}`}
                 </p>
               </section>
             </div>
