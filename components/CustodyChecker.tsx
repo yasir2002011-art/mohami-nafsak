@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import LawyerContact from "@/components/LawyerContact";
-import ResultFeedback from "@/components/ResultFeedback";
+import CustodyObjection from "@/components/CustodyObjection";
 import { HIJRI_MONTHS, isValidHijri, type HijriDate } from "@/lib/hijri";
 import { emptyStates, runCustodyChecker } from "@/lib/custody";
 import type {
@@ -648,16 +648,6 @@ function ResultView({
   lawyers: Lawyer[];
   onRestart: () => void;
 }) {
-  // وسم عام للنتيجة يُرفق بالتعليل — بلا بيانات شخصية
-  const feedbackLabel = result.outcomes
-    .map(
-      (outcome) =>
-        `${outcome.childLabel} ${outcome.ageYears}س: ${OUTCOME_LABELS[outcome.kind]}${
-          outcome.winnerLabel ? ` — ${outcome.winnerLabel}` : ""
-        }`,
-    )
-    .join(" | ");
-
   const copyResult = () => {
     const lines: string[] = ["نتيجة كاشف مستحق الحضانة", ""];
 
@@ -702,7 +692,8 @@ function ResultView({
         const style = OUTCOME_STYLES[outcome.kind];
 
         return (
-          <article key={outcome.childId} className="card-soft overflow-hidden">
+          <div key={outcome.childId}>
+          <article className="card-soft overflow-hidden">
             <div className={`h-1.5 w-full bg-gradient-to-l ${style.bar}`} />
 
             <div className="p-6 sm:p-8">
@@ -842,6 +833,18 @@ function ResultView({
               </section>
             </div>
           </article>
+
+          {/* مرحلة الاعتراض — لكل محضون له حاضن معيّن في النتيجة */}
+          {outcome.winnerLabel && (
+            <CustodyObjection
+              childId={outcome.childId}
+              childLabel={outcome.childLabel}
+              ageYears={outcome.ageYears}
+              custodianLabel={outcome.winnerLabel}
+              resultLabel={OUTCOME_LABELS[outcome.kind]}
+            />
+          )}
+          </div>
         );
       })}
 
@@ -862,8 +865,6 @@ function ResultView({
           إعادة الكشف
         </button>
       </div>
-
-      <ResultFeedback toolId={toolId} resultLabel={feedbackLabel} />
 
       {lawyers.length > 0 && (
         <LawyerContact
