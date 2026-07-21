@@ -117,7 +117,14 @@ ${reference}
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 1400, topP: 0.9 },
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 2048,
+          topP: 0.9,
+          // نماذج 2.5 تستهلك ميزانية الإخراج في «التفكير» الداخلي؛ نوقفه
+          // لأن المهمة منظّمة ومحددة، فيبقى الإخراج للفقرات الست كاملة.
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     });
 
