@@ -13,7 +13,7 @@ import path from "node:path";
  * النهائي للمحكمة.
  */
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const MIN_REASON = 10;
 
 /** نصوص المواد المرجعية — تُقرأ من ملف بيانات منفصل عن الكود */
