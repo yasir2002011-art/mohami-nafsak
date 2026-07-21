@@ -5,6 +5,7 @@ import Icon from "@/components/Icon";
 import { answeredTrail, runEngine, sourcesForResult, type Answers } from "@/lib/engine";
 import type { DecisionEngine, EngineQuestion, EngineResult, Lawyer } from "@/types";
 import LawyerContact from "@/components/LawyerContact";
+import ResultFeedback from "@/components/ResultFeedback";
 
 /**
  * مشغّل الأداة في المتصفح.
@@ -454,6 +455,9 @@ function ResultCard({
           </div>
         </div>
       </article>
+
+      {/* رضا المستخدم عن النتيجة */}
+      <ResultFeedback toolId={toolId} resultLabel={result.title} />
 
       {/* المحامون — معزولون تمامًا عن النتيجة القانونية */}
       {lawyers.length > 0 && (

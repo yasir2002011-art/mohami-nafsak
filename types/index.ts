@@ -350,6 +350,8 @@ export type AnalyticsEventType =
   | "tool_complete"
   | "tool_abandon"
   | "result_copy"
+  | "result_satisfied"
+  | "result_unsatisfied"
   | "lawyer_click"
   | "referral_created"
   | "ad_impression"
@@ -377,7 +379,7 @@ export interface ErrorReport {
   toolId?: string;
   engineId?: string;
   articleId?: string;
-  kind: "legal-update" | "wrong-result" | "broken-link" | "other";
+  kind: "legal-update" | "wrong-result" | "broken-link" | "unsatisfied-result" | "other";
   message: string;
   /** بريد اختياري للرد */
   contactEmail?: string;

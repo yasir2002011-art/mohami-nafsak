@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import LawyerContact from "@/components/LawyerContact";
+import ResultFeedback from "@/components/ResultFeedback";
 import { HIJRI_MONTHS, isValidHijri, type HijriDate } from "@/lib/hijri";
 import { emptyStates, runCustodyChecker } from "@/lib/custody";
 import type {
@@ -647,6 +648,16 @@ function ResultView({
   lawyers: Lawyer[];
   onRestart: () => void;
 }) {
+  // وسم عام للنتيجة يُرفق بالتعليل — بلا بيانات شخصية
+  const feedbackLabel = result.outcomes
+    .map(
+      (outcome) =>
+        `${outcome.childLabel} ${outcome.ageYears}س: ${OUTCOME_LABELS[outcome.kind]}${
+          outcome.winnerLabel ? ` — ${outcome.winnerLabel}` : ""
+        }`,
+    )
+    .join(" | ");
+
   const copyResult = () => {
     const lines: string[] = ["نتيجة كاشف مستحق الحضانة", ""];
 
@@ -851,6 +862,8 @@ function ResultView({
           إعادة الكشف
         </button>
       </div>
+
+      <ResultFeedback toolId={toolId} resultLabel={feedbackLabel} />
 
       {lawyers.length > 0 && (
         <LawyerContact

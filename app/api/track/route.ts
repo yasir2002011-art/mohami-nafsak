@@ -16,6 +16,8 @@ const ALLOWED_TYPES: AnalyticsEventType[] = [
   "tool_complete",
   "tool_abandon",
   "result_copy",
+  "result_satisfied",
+  "result_unsatisfied",
   "lawyer_click",
   "ad_impression",
   "article_view",

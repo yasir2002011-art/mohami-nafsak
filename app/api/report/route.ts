@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { getAll, saveAll } from "@/lib/store";
 import type { ErrorReport } from "@/types";
 
-const KINDS: ErrorReport["kind"][] = ["legal-update", "wrong-result", "broken-link", "other"];
+const KINDS: ErrorReport["kind"][] = [
+  "legal-update",
+  "wrong-result",
+  "broken-link",
+  "unsatisfied-result",
+  "other",
+];
 
 /** بلاغ عن خطأ أو تحديث نظامي — يظهر في لوحة الإدارة للمراجعة */
 export async function POST(request: Request) {

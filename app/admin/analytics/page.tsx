@@ -19,6 +19,11 @@ export default async function AdminAnalyticsPage() {
   const topResults = countBy(events, "tool_complete", (event) => event.resultId);
   const lawyerClicks = countBy(events, "lawyer_click", (event) => event.lawyerId);
   const copies = events.filter((event) => event.type === "result_copy").length;
+  const satisfied = events.filter((event) => event.type === "result_satisfied").length;
+  const unsatisfied = events.filter((event) => event.type === "result_unsatisfied").length;
+  const ratedTotal = satisfied + unsatisfied;
+  const satisfactionRate =
+    ratedTotal > 0 ? Math.round((satisfied / ratedTotal) * 100) : null;
 
   const nameOfTool = (id?: string) =>
     tools.find((tool) => tool.id === id)?.name ?? id ?? "—";
@@ -67,6 +72,53 @@ export default async function AdminAnalyticsPage() {
               <p className="text-xs font-bold text-slate-500">إحالات إلى محامين</p>
             </Card>
           </div>
+
+          {/* رضا المستخدمين عن النتائج */}
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-extrabold text-slate-900">رضا المستخدمين عن النتائج</h2>
+              {satisfactionRate !== null && (
+                <span
+                  className={`badge ${
+                    satisfactionRate >= 70
+                      ? "bg-emerald-100 text-emerald-800"
+                      : satisfactionRate >= 40
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-rose-100 text-rose-800"
+                  }`}
+                >
+                  نسبة الرضا {satisfactionRate}%
+                </span>
+              )}
+            </div>
+
+            {ratedTotal === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">
+                لا توجد تقييمات بعد. تظهر هنا فور تقييم المستخدمين للنتائج.
+              </p>
+            ) : (
+              <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-xl bg-emerald-50 py-3">
+                  <p className="text-xl font-black text-emerald-700">{satisfied}</p>
+                  <p className="text-[11px] font-bold text-emerald-700/70">راضٍ</p>
+                </div>
+                <div className="rounded-xl bg-rose-50 py-3">
+                  <p className="text-xl font-black text-rose-700">{unsatisfied}</p>
+                  <p className="text-[11px] font-bold text-rose-700/70">غير راضٍ</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 py-3">
+                  <p className="text-xl font-black text-slate-800">{ratedTotal}</p>
+                  <p className="text-[11px] font-bold text-slate-500">إجمالي التقييمات</p>
+                </div>
+              </div>
+            )}
+
+            {unsatisfied > 0 && (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                تعليلات عدم الرضا تظهر في صفحة «البلاغات» بنوع «عدم رضا عن النتيجة».
+              </p>
+            )}
+          </Card>
 
           {/* قمع الأدوات */}
           <Card>

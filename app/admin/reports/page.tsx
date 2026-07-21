@@ -8,6 +8,7 @@ const KIND_LABELS: Record<string, string> = {
   "legal-update": "تحديث نظامي",
   "wrong-result": "نتيجة غير مناسبة",
   "broken-link": "رابط لا يعمل",
+  "unsatisfied-result": "عدم رضا عن النتيجة",
   other: "أخرى",
 };
 
