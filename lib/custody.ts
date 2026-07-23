@@ -143,7 +143,8 @@ function decideForChild(
   states: CandidateStates,
   config: CustodyRuleConfig,
   index: number,
-  parentsMarried: boolean,
+  /** أسرة قائمة: زوجية قائمة ومسكن واحد → حضانة مشتركة بلا إعمال للترتيب */
+  jointCustody: boolean,
 ): ChildOutcome {
   const age = hijriAge(child.birth);
   const childLabel = child.name?.trim()
@@ -174,8 +175,8 @@ function decideForChild(
     notes,
   };
 
-  /* الزوجية قائمة: الحضانة واجب الوالدين معًا — المادة (127/1) */
-  if (parentsMarried) {
+  /* أسرة قائمة (زوجية + مسكن واحد): الحضانة واجب الوالدين معًا — المادة (127/1) */
+  if (jointCustody) {
     return {
       ...base,
       kind: "courtDiscretion",
@@ -348,10 +349,10 @@ export function runCustodyChecker(
   children: Child[],
   states: CandidateStates,
   config: CustodyRuleConfig,
-  parentsMarried = false,
+  jointCustody = false,
 ): CustodyResult {
   const outcomes = children.map((child, index) =>
-    decideForChild(child, states, config, index, parentsMarried),
+    decideForChild(child, states, config, index, jointCustody),
   );
 
   return {

@@ -45,7 +45,20 @@ export default function CustodyChecker({
   const [step, setStep] = useState(0);
   const [items, setItems] = useState<Child[]>([blankChild(0)]);
   const [states, setStates] = useState<CandidateStates>(() => emptyStates(config));
-  const [parentsMarried, setParentsMarried] = useState(false);
+
+  // حالة الزوجية على مرحلتين:
+  // 1) هل انتهت الزوجية (الفرقة: طلاق/خلع/فسخ/وفاة/لعان — المادة 76)؟
+  // 2) إن لم تنتهِ، هل يعيش الوالدان في مسكن واحد؟
+  const [marriageEnded, setMarriageEnded] = useState<"" | "yes" | "no">("");
+  const [sameHome, setSameHome] = useState<"" | "yes" | "no">("");
+  const [showSepInfo, setShowSepInfo] = useState(false);
+
+  // أسرة قائمة (لا نزاع حضانة): زوجية قائمة + مسكن واحد → حضانة مشتركة (م.127/1)
+  const jointCustody = marriageEnded === "no" && sameHome === "yes";
+  // يُعمَل الترتيب النظامي عند الفرقة، أو بقاء الزوجية مع الافتراق في المسكن (م.133)
+  const orderApplies =
+    marriageEnded === "yes" || (marriageEnded === "no" && sameHome === "no");
+  const maritalDecided = jointCustody || orderApplies;
 
   const ping = (type: string) => {
     void fetch("/api/track", {
@@ -57,8 +70,8 @@ export default function CustodyChecker({
   };
 
   const result = useMemo(
-    () => (step === 6 ? runCustodyChecker(items, states, config, parentsMarried) : null),
-    [step, items, states, config, parentsMarried],
+    () => (step === 6 ? runCustodyChecker(items, states, config, jointCustody) : null),
+    [step, items, states, config, jointCustody],
   );
 
   const childrenValid =
@@ -69,14 +82,14 @@ export default function CustodyChecker({
   const goNext = () => {
     if (step === 0) ping("tool_start");
     if (step === 5) ping("tool_complete");
-    // إذا كانت الزوجية قائمة فلا معنى لأسئلة الترتيب — ننتقل إلى النتيجة
-    const next = step === 2 && parentsMarried ? 6 : step + 1;
+    // أسرة قائمة (زوجية + مسكن واحد): لا معنى لأسئلة الترتيب — ننتقل إلى النتيجة
+    const next = step === 2 && jointCustody ? 6 : step + 1;
     setStep(Math.min(next, 6));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const goBack = () => {
-    const previous = step === 6 && parentsMarried ? 2 : step - 1;
+    const previous = step === 6 && jointCustody ? 2 : step - 1;
     setStep(Math.max(previous, 0));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -103,39 +116,99 @@ export default function CustodyChecker({
       {step === 2 && (
         <Card
           title="حالة الوالدين والحاضنين"
-          hint="الحضانة من واجبات الوالدين معًا ما دامت الزوجية قائمة بينهما، فإن افترقا انتقلت إلى الترتيب النظامي."
+          hint="لا يبدأ النزاع في الحضانة إلا بانتهاء الزوجية (الفرقة) أو بافتراق الوالدين في المسكن مع بقائها. أما إذا كانا زوجين في مسكن واحد فالحضانة من واجباتهما معًا."
         >
+          {/* السؤال الأول: هل انتهت الزوجية؟ */}
           <div className="rounded-2xl border-2 border-slate-200 bg-white p-4">
-            <p className="mb-3 text-sm font-bold text-slate-800">
-              ما وضع العلاقة الزوجية بين والدي المحضون؟
-            </p>
+            <div className="mb-3 flex items-center gap-2">
+              <p className="text-sm font-bold text-slate-800">
+                هل انتهت الزوجية بين والدي المحضون؟
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowSepInfo((value) => !value)}
+                aria-label="ما معنى انتهاء الزوجية؟"
+                className="flex h-5 w-5 items-center justify-center rounded-full border border-brand-300 text-[11px] font-extrabold text-brand-700 hover:bg-brand-50"
+              >
+                ؟
+              </button>
+            </div>
+
+            {showSepInfo && (
+              <p className="mb-3 rounded-xl bg-brand-50 px-3 py-2.5 text-xs leading-relaxed text-brand-900">
+                {config.notes.separationMeaning}
+              </p>
+            )}
+
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setParentsMarried(false)}
+                onClick={() => {
+                  setMarriageEnded("yes");
+                  setSameHome("");
+                }}
                 className={`rounded-full border-2 px-5 py-2 text-sm font-bold transition ${
-                  !parentsMarried
+                  marriageEnded === "yes"
                     ? "border-brand-600 bg-brand-50 text-brand-800"
                     : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                 }`}
               >
-                افترقا (طلاق أو انفصال)
+                نعم، انتهت الزوجية
               </button>
               <button
                 type="button"
-                onClick={() => setParentsMarried(true)}
+                onClick={() => setMarriageEnded("no")}
                 className={`rounded-full border-2 px-5 py-2 text-sm font-bold transition ${
-                  parentsMarried
+                  marriageEnded === "no"
                     ? "border-brand-600 bg-brand-50 text-brand-800"
                     : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                 }`}
               >
-                الزوجية ما زالت قائمة
+                لا، الزوجية قائمة
               </button>
             </div>
           </div>
 
-          {!parentsMarried && (
+          {/* السؤال الثاني: يظهر فقط إذا كانت الزوجية قائمة */}
+          {marriageEnded === "no" && (
+            <div className="mt-4 rounded-2xl border-2 border-slate-200 bg-white p-4">
+              <p className="mb-3 text-sm font-bold text-slate-800">
+                هل يعيش والدا المحضون في مسكن واحد؟
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSameHome("yes")}
+                  className={`rounded-full border-2 px-5 py-2 text-sm font-bold transition ${
+                    sameHome === "yes"
+                      ? "border-brand-600 bg-brand-50 text-brand-800"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                  }`}
+                >
+                  نعم، في مسكن واحد
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSameHome("no")}
+                  className={`rounded-full border-2 px-5 py-2 text-sm font-bold transition ${
+                    sameHome === "no"
+                      ? "border-brand-600 bg-brand-50 text-brand-800"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                  }`}
+                >
+                  لا، منفصلان في المسكن
+                </button>
+              </div>
+              {sameHome === "no" && (
+                <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
+                  {config.notes.motherLeftHome}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* قائمة الوجود: تظهر متى تعيّن إعمال الترتيب */}
+          {orderApplies && (
             <div className="mt-5">
               <p className="mb-3 text-sm font-bold text-slate-800">
                 من الموجود من مستحقي الحضانة؟
@@ -281,7 +354,8 @@ export default function CustodyChecker({
             setStep(0);
             setItems([blankChild(0)]);
             setStates(emptyStates(config));
-            setParentsMarried(false);
+            setMarriageEnded("");
+            setSameHome("");
           }}
         />
       )}
@@ -294,10 +368,12 @@ export default function CustodyChecker({
           <button
             type="button"
             onClick={goNext}
-            disabled={step === 1 && !childrenValid}
+            disabled={
+              (step === 1 && !childrenValid) || (step === 2 && !maritalDecided)
+            }
             className="btn-brand disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {step === 5 || (step === 2 && parentsMarried) ? "اعرض النتيجة" : "التالي"}
+            {step === 5 || (step === 2 && jointCustody) ? "اعرض النتيجة" : "التالي"}
             <Icon name="arrow" className="h-4 w-4" />
           </button>
         </div>
