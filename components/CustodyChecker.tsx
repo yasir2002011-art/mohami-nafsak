@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import LawyerContact from "@/components/LawyerContact";
 import CustodyObjection from "@/components/CustodyObjection";
-import { HIJRI_MONTHS, isValidHijri, type HijriDate } from "@/lib/hijri";
+import { HIJRI_MONTHS, hijriAge, isValidHijri, type HijriDate } from "@/lib/hijri";
 import { emptyStates, runCustodyChecker } from "@/lib/custody";
 import type {
   CandidateKey,
@@ -92,7 +92,12 @@ export default function CustodyChecker({
       {step === 0 && <Intro config={config} todayLabel={todayLabel} onStart={goNext} />}
 
       {step === 1 && (
-        <ChildrenStep items={items} setItems={setItems} todayLabel={todayLabel} />
+        <ChildrenStep
+          items={items}
+          setItems={setItems}
+          todayLabel={todayLabel}
+          endAge={config.ageThresholds.end}
+        />
       )}
 
       {step === 2 && (
@@ -441,10 +446,13 @@ function ChildrenStep({
   items,
   setItems,
   todayLabel,
+  endAge,
 }: {
   items: Child[];
   setItems: (value: Child[]) => void;
   todayLabel: string;
+  /** سن انتهاء الحضانة — عنده فقط يظهر خيار «غير قادر على رعاية نفسه» */
+  endAge: number;
 }) {
   const patch = (id: string, updates: Partial<Child>) => {
     setItems(items.map((child) => (child.id === id ? { ...child, ...updates } : child)));
@@ -464,7 +472,13 @@ function ChildrenStep({
       hint={`المحضونون هم من تُطلب حضانتهم. الأعمار تُحسب بالتقويم الهجري. التاريخ الهجري اليوم: ${todayLabel}`}
     >
       <div className="space-y-4">
-        {items.map((child, index) => (
+        {items.map((child, index) => {
+          // خيار عدم القدرة على رعاية النفس لا يؤثر إلا عند بلوغ سن الانتهاء،
+          // فلا يظهر إلا إذا دلّت المدخلات على أن عمر المحضون بلغ ذلك السن.
+          const showIncapacitated =
+            isValidHijri(child.birth) && hijriAge(child.birth) >= endAge;
+
+          return (
           <div key={child.id} className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-extrabold text-slate-900">
@@ -553,27 +567,30 @@ function ChildrenStep({
               />
             </div>
 
-            <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl bg-slate-50 p-3">
-              <input
-                type="checkbox"
-                checked={child.incapacitated}
-                onChange={(event) =>
-                  patch(child.id, { incapacitated: event.target.checked })
-                }
-                className="mt-0.5 h-4 w-4 accent-brand-600"
-              />
-              <span>
-                <span className="text-sm font-bold text-slate-800">
-                  المحضون غير قادر على رعاية نفسه
+            {showIncapacitated && (
+              <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl bg-slate-50 p-3">
+                <input
+                  type="checkbox"
+                  checked={child.incapacitated}
+                  onChange={(event) =>
+                    patch(child.id, { incapacitated: event.target.checked })
+                  }
+                  className="mt-0.5 h-4 w-4 accent-brand-600"
+                />
+                <span>
+                  <span className="text-sm font-bold text-slate-800">
+                    المحضون غير قادر على رعاية نفسه
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">
+                    بلغ المحضون ثمانية عشر عامًا. فإذا كان مجنونًا أو معتوهًا أو مريضًا مرضًا
+                    مقعدًا، تستمر الحضانة ولا تنتهي ببلوغه هذا السن.
+                  </span>
                 </span>
-                <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">
-                  إذا كان مجنونًا أو معتوهًا أو مريضًا مرضًا مقعدًا، تستمر الحضانة ولا
-                  تنتهي ببلوغه ثمانية عشر عامًا.
-                </span>
-              </span>
-            </label>
+              </label>
+            )}
           </div>
-        ))}
+          );
+        })}
 
         <button
           type="button"
