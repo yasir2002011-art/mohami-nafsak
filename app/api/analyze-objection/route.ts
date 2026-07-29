@@ -14,8 +14,8 @@ import path from "node:path";
  */
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-/** نموذج احتياطي يُجرَّب إذا فشل النموذج الأساسي بخطأ عابر */
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-2.0-flash";
+/** نموذج احتياطي (جيل مطابق، حصة منفصلة) يُجرَّب إذا فشل الأساسي بخطأ عابر */
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash-lite";
 const MIN_REASON = 10;
 
 /** أخطاء عابرة من الخدمة تستحق إعادة المحاولة (ضغط مؤقت أو حدّ لحظي) */
