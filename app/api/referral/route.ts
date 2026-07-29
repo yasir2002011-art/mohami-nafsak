@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAll, saveAll } from "@/lib/store";
 import { track } from "@/lib/analytics";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import type { Referral } from "@/types";
 
 /**
@@ -13,6 +14,11 @@ import type { Referral } from "@/types";
  * المنصة لا تنقل ملخص القضية، والمستخدم هو من يكتبه بنفسه في محادثته.
  */
 export async function POST(request: Request) {
+  const limit = await checkRateLimit(`referral:${clientIp(request)}`, 10, 60);
+  if (!limit.allowed) {
+    return NextResponse.json({ ok: false, error: "محاولات كثيرة." }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const lawyerId = String(body.lawyerId ?? "");

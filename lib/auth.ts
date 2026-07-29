@@ -15,8 +15,26 @@ const COOKIE_NAME = "mn_admin_session";
 /** انتهاء الجلسة تلقائيًا بعد عدم النشاط */
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 4;
 
+const DEV_SECRET = "dev-only-insecure-secret";
+
 function secret(): string {
-  return process.env.ADMIN_SESSION_SECRET || "dev-only-insecure-secret";
+  return process.env.ADMIN_SESSION_SECRET || DEV_SECRET;
+}
+
+/**
+ * الفشل المغلق: في الإنتاج لا تُقبل أي جلسة إدارة ما لم يُضبط مفتاح توقيع
+ * قوي (‏32 حرفًا فأكثر‏) وكلمة مرور قوية (‏12 حرفًا فأكثر‏). فبدونهما تكون
+ * الجلسات قابلة للتزوير، فالأأمن منع لوحة الإدارة كليًا حتى تُضبط بيئة سليمة.
+ */
+export function adminSecuritySafe(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  const sessionSecret = process.env.ADMIN_SESSION_SECRET ?? "";
+  const password = process.env.ADMIN_PASSWORD ?? "";
+  return (
+    sessionSecret.length >= 32 &&
+    sessionSecret !== DEV_SECRET &&
+    password.length >= 12
+  );
 }
 
 function sign(payload: string): string {
@@ -50,6 +68,7 @@ function verifyToken(token: string): { role: string } | null {
 }
 
 export async function isAuthenticated(): Promise<boolean> {
+  if (!adminSecuritySafe()) return false;
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   return Boolean(token && verifyToken(token));
@@ -64,6 +83,9 @@ export async function currentRole(): Promise<string | null> {
 
 /** يتحقق من كلمة المرور بمقارنة ثابتة الزمن ويفتح الجلسة */
 export async function signIn(password: string): Promise<boolean> {
+  // لا تسمح بالدخول إذا كانت بيئة الأمان غير سليمة في الإنتاج
+  if (!adminSecuritySafe()) return false;
+
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) return false;
 
@@ -76,7 +98,7 @@ export async function signIn(password: string): Promise<boolean> {
   const store = await cookies();
   store.set(COOKIE_NAME, createToken("owner"), {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
@@ -87,33 +109,4 @@ export async function signIn(password: string): Promise<boolean> {
 export async function signOut(): Promise<void> {
   const store = await cookies();
   store.delete(COOKIE_NAME);
-}
-
-/* ------------------------- حماية من المحاولات المتكررة ------------------------- */
-
-const attempts = new Map<string, { count: number; firstAttemptAt: number }>();
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 5;
-
-export function tooManyAttempts(key: string): boolean {
-  const record = attempts.get(key);
-  if (!record) return false;
-  if (Date.now() - record.firstAttemptAt > WINDOW_MS) {
-    attempts.delete(key);
-    return false;
-  }
-  return record.count >= MAX_ATTEMPTS;
-}
-
-export function recordFailedAttempt(key: string): void {
-  const record = attempts.get(key);
-  if (!record || Date.now() - record.firstAttemptAt > WINDOW_MS) {
-    attempts.set(key, { count: 1, firstAttemptAt: Date.now() });
-    return;
-  }
-  record.count += 1;
-}
-
-export function clearAttempts(key: string): void {
-  attempts.delete(key);
 }

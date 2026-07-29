@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 /**
  * تحليل استرشادي لأسباب اعتراض المستخدم على نتيجة كاشف الحضانة.
@@ -61,11 +62,34 @@ const SYSTEM_PROMPT = `أنت مساعد قانوني استرشادي في من
 ### 6. تنبيه بأن القرار النهائي للمحكمة`;
 
 export async function POST(request: Request) {
+  // مفتاح إيقاف صلب: عند إساءة الاستخدام يُوقَف التحليل فورًا بمتغيّر بيئة
+  if (process.env.AI_ANALYSIS_DISABLED === "1") {
+    return NextResponse.json(
+      { ok: false, error: "خدمة التحليل موقوفة مؤقتًا." },
+      { status: 503 },
+    );
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   // بلا مفتاح: تنبيه للمطور فقط، دون تعطيل باقي الموقع
   if (!apiKey) {
     return NextResponse.json({ ok: false, missingKey: true }, { status: 200 });
+  }
+
+  // حدّ معدّل يحمي رصيد Gemini من الاستنزاف — لكل عنوان
+  const ip = clientIp(request);
+  const perMinute = await checkRateLimit(`ai:min:${ip}`, 6, 60);
+  const perDay = await checkRateLimit(`ai:day:${ip}`, 40, 86400);
+  if (!perMinute.allowed || !perDay.allowed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        retryable: perMinute.allowed === false,
+        error: "تجاوزت حدّ عدد التحليلات المسموح. حاول لاحقًا.",
+      },
+      { status: 429 },
+    );
   }
 
   let body: Record<string, unknown>;

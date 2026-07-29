@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAll, saveAll } from "@/lib/store";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import type { ErrorReport } from "@/types";
 
 const KINDS: ErrorReport["kind"][] = [
@@ -12,6 +13,11 @@ const KINDS: ErrorReport["kind"][] = [
 
 /** بلاغ عن خطأ أو تحديث نظامي — يظهر في لوحة الإدارة للمراجعة */
 export async function POST(request: Request) {
+  const limit = await checkRateLimit(`report:${clientIp(request)}`, 6, 60);
+  if (!limit.allowed) {
+    return NextResponse.json({ ok: false, error: "محاولات كثيرة." }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const message = String(body.message ?? "").trim();

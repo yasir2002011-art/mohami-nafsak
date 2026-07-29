@@ -1,20 +1,26 @@
 import { NextResponse } from "next/server";
-import {
-  clearAttempts,
-  recordFailedAttempt,
-  signIn,
-  tooManyAttempts,
-} from "@/lib/auth";
+import { adminSecuritySafe, signIn } from "@/lib/auth";
 import { logAudit } from "@/lib/store";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
-  // مفتاح التحديد: عنوان الطلب — للحد من محاولات الدخول المتكررة
-  const key =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-
-  if (tooManyAttempts(key)) {
+  // بيئة أمان غير سليمة في الإنتاج — لا تفتح اللوحة حتى تُضبط الأسرار
+  if (!adminSecuritySafe()) {
     return NextResponse.json(
-      { error: "محاولات كثيرة. انتظر 15 دقيقة ثم أعد المحاولة." },
+      {
+        error:
+          "لوحة الإدارة مقفلة لأسباب أمنية. اضبط ADMIN_SESSION_SECRET (32 حرفًا فأكثر) وADMIN_PASSWORD (12 حرفًا فأكثر) في متغيّرات البيئة.",
+      },
+      { status: 503 },
+    );
+  }
+
+  // حدّ محاولات الدخول — يعمل بموثوقية عبر النسخ عند تفعيل Upstash
+  const ip = clientIp(request);
+  const limit = await checkRateLimit(`login:${ip}`, 5, 15 * 60);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة." },
       { status: 429 },
     );
   }
@@ -24,13 +30,12 @@ export async function POST(request: Request) {
 
   if (!process.env.ADMIN_PASSWORD) {
     return NextResponse.json(
-      { error: "لم تُضبط كلمة مرور الإدارة. أضف ADMIN_PASSWORD في ملف .env.local" },
+      { error: "لم تُضبط كلمة مرور الإدارة. أضف ADMIN_PASSWORD في متغيّرات البيئة." },
       { status: 500 },
     );
   }
 
   if (await signIn(password)) {
-    clearAttempts(key);
     await logAudit({
       actor: "owner",
       action: "login",
@@ -41,6 +46,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  recordFailedAttempt(key);
   return NextResponse.json({ error: "كلمة المرور غير صحيحة." }, { status: 401 });
 }

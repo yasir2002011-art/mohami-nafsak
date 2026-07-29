@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { track } from "@/lib/analytics";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import type { AnalyticsEventType } from "@/types";
 
 /**
@@ -27,6 +28,11 @@ const asId = (value: unknown): string | undefined =>
   typeof value === "string" && value.length > 0 && value.length <= 100 ? value : undefined;
 
 export async function POST(request: Request) {
+  const limit = await checkRateLimit(`track:${clientIp(request)}`, 80, 60);
+  if (!limit.allowed) {
+    return NextResponse.json({ ok: false }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const type = body?.type as AnalyticsEventType;
