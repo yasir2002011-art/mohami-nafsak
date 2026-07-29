@@ -4,7 +4,19 @@ import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import LawyerContact from "@/components/LawyerContact";
 import CustodyObjection from "@/components/CustodyObjection";
-import { HIJRI_MONTHS, hijriAge, isValidHijri, type HijriDate } from "@/lib/hijri";
+import {
+  formatGregorianAr,
+  formatHijri,
+  gregorianToHijri,
+  HIJRI_MONTHS,
+  hijriAge,
+  hijriToGregorian,
+  isValidHijri,
+  parseISODate,
+  toISODate,
+  todayHijri,
+  type HijriDate,
+} from "@/lib/hijri";
 import { emptyStates, runCustodyChecker } from "@/lib/custody";
 import type {
   CandidateKey,
@@ -542,10 +554,16 @@ function ChildrenStep({
     );
   };
 
+  // تاريخ اليوم بالتقويمين — يُحسب عند كل عرض فيتحدّث يومًا بيوم
+  const todayG = hijriToGregorian(todayHijri());
+  const todayDual = todayG
+    ? `${todayLabel} الموافق ${formatGregorianAr(todayG)}`
+    : todayLabel;
+
   return (
     <Card
       title="التحقق من المحضونين"
-      hint={`المحضونون هم من تُطلب حضانتهم. الأعمار تُحسب بالتقويم الهجري. التاريخ الهجري اليوم: ${todayLabel}`}
+      hint={`المحضونون هم من تُطلب حضانتهم. الأعمار تُحسب بالتقويم الهجري. تاريخ اليوم: ${todayDual}`}
     >
       <div className="space-y-4">
         {items.map((child, index) => {
@@ -603,7 +621,14 @@ function ChildrenStep({
               </div>
             </div>
 
-            <p className="label mt-4">تاريخ الميلاد (هجري)</p>
+            <p className="label mt-4">تاريخ الميلاد</p>
+            <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
+              أدخل التاريخ بأيّ من التقويمين، فيتحوّل إلى الآخر مباشرة. المعتمد في الحساب هو
+              الهجري.
+            </p>
+
+            {/* التقويم الهجري */}
+            <span className="mb-1 block text-[11px] font-bold text-brand-700">هجري</span>
             <div className="grid grid-cols-3 gap-2">
               <input
                 type="number"
@@ -642,6 +667,43 @@ function ChildrenStep({
                 placeholder="السنة"
               />
             </div>
+
+            {/* التقويم الميلادي — مشتق من الهجري ومتزامن معه */}
+            <span className="mb-1 mt-3 block text-[11px] font-bold text-brand-700">ميلادي</span>
+            <input
+              type="date"
+              min="1850-01-01"
+              max="2100-12-31"
+              value={
+                isValidHijri(child.birth)
+                  ? (() => {
+                      const g = hijriToGregorian(child.birth);
+                      return g ? toISODate(g) : "";
+                    })()
+                  : ""
+              }
+              onChange={(event) => {
+                const g = parseISODate(event.target.value);
+                if (g) {
+                  const h = gregorianToHijri(
+                    new Date(Date.UTC(g.year, g.month - 1, g.day)),
+                  );
+                  patchBirth(child.id, h);
+                }
+              }}
+              className="field"
+            />
+
+            {isValidHijri(child.birth) &&
+              (() => {
+                const g = hijriToGregorian(child.birth);
+                return g ? (
+                  <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+                    {formatHijri(child.birth)} · الموافق {formatGregorianAr(g)} · العمر{" "}
+                    {hijriAge(child.birth)} سنة هجرية
+                  </p>
+                ) : null;
+              })()}
 
             {showIncapacitated && (
               <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl bg-slate-50 p-3">
