@@ -41,6 +41,9 @@ const SYSTEM_PROMPT = `أنت مساعد قانوني استرشادي في من
   المحكمة لمصلحة المحضون إذا ثبتت بأدلة معتبرة».
 - المعيار الأعلى هو مصلحة المحضون، والقرار النهائي للمحكمة وحدها.
 - لا تعِد بنتيجة ولا تعطِ نسبة نجاح، وإذا كانت المعلومات غير كافية فقُل ذلك صراحة.
+- التزم بحالة المرشّحين كما أدخلها المستخدم في الأداة، ولا تفترض خلافها. فإن رشّح
+  المستخدم شخصًا أفاد بأنه «غير موجود» أو «سقط حقه»، فنبّه صراحةً إلى أن ترجيحه لا
+  يستقيم إلا إن ثبت وجوده وتوافر شروطه، ووجّه المستخدم إلى تصحيح مدخلاته إن لزم.
 - اكتب بالعربية الفصحى المبسّطة، وكن موجزًا ومحددًا.
 
 أخرِج التحليل بصيغة Markdown في ست فقرات مرقّمة، كل فقرة تبدأ بعنوانها هكذا:
@@ -74,17 +77,18 @@ export async function POST(request: Request) {
     );
   }
 
-  // بيانات هذا المحضون فقط — لا تُخلط ببيانات محضون آخر
+  // الحد الأدنى فقط: لا اسم محضون ولا أي بيان شخصي — حالات مجرّدة
   const childAge = Number(body.childAge);
   const details = {
     resultLabel: clip(body.resultLabel, 120),
     currentCustodian: clip(body.currentCustodian, 60),
-    childName: clip(body.childName, 60),
     childAge: Number.isFinite(childAge) ? childAge : "غير محدد",
     objectionReason,
     preferredCustodian: clip(body.preferredCustodian, 80),
     benefitsWithAlternative: clip(body.benefitsWithAlternative, 1500),
     benefitsLost: clip(body.benefitsLost, 1500),
+    // ملخص حالات المرشّحين كما أدخلها المستخدم في الشجرة (بلا أسماء)
+    treeSummary: clip(body.treeSummary, 600),
   };
 
   const reference = await legalReference();
@@ -95,8 +99,10 @@ ${reference}
 نتيجة أداة الحضانة لهذا المحضون:
 - النتيجة: ${details.resultLabel}
 - الحاضن الذي انتهت إليه النتيجة: ${details.currentCustodian}
-- اسم المحضون: ${details.childName || "لم يُذكر"}
 - عمر المحضون: ${details.childAge} سنة هجرية
+
+حالة المرشّحين كما أدخلها المستخدم في الأداة (التزم بها ولا تخالفها):
+${details.treeSummary || "لم تُذكر"}
 
 اعتراض المستخدم:
 - سبب عدم الاقتناع بالنتيجة: ${details.objectionReason}

@@ -997,6 +997,11 @@ function ResultView({
               ageYears={outcome.ageYears}
               custodianLabel={outcome.winnerLabel}
               resultLabel={OUTCOME_LABELS[outcome.kind]}
+              candidates={outcome.evaluations.map((evaluation) => ({
+                label: evaluation.label,
+                status: evaluation.status,
+                reasons: evaluation.forfeitReasons.map((reason) => reason.text),
+              }))}
             />
           )}
           </div>

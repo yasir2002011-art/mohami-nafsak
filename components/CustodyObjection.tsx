@@ -14,16 +14,19 @@ import Markdown from "@/components/Markdown";
  * كل نسخة من هذا المكوّن مستقلة الحالة تمامًا، فبيانات محضون لا تختلط بمحضون آخر.
  */
 
-const PREFERRED_OPTIONS = [
-  { value: "", label: "— اختر —" },
-  { value: "الأب", label: "الأب" },
-  { value: "الأم", label: "الأم" },
-  { value: "الجدة (أم الأم)", label: "الجدة (أم الأم)" },
-  { value: "الجدة (أم الأب)", label: "الجدة (أم الأب)" },
-  { value: "other", label: "شخص آخر" },
-];
-
 const MIN_REASON = 10;
+
+export type ObjectionCandidate = {
+  label: string;
+  status: "eligible" | "forfeited" | "absent";
+  reasons: string[];
+};
+
+const STATUS_AR: Record<ObjectionCandidate["status"], string> = {
+  eligible: "متوافرة فيه الشروط",
+  forfeited: "سقط حقه",
+  absent: "غير موجود",
+};
 
 export default function CustodyObjection({
   childId,
@@ -31,6 +34,7 @@ export default function CustodyObjection({
   ageYears,
   custodianLabel,
   resultLabel,
+  candidates,
 }: {
   childId: string;
   childLabel: string;
@@ -39,7 +43,21 @@ export default function CustodyObjection({
   custodianLabel: string;
   /** وسم النتيجة، مثل: «المستحق للحضانة غالبًا» */
   resultLabel: string;
+  /** حالة كل مرشّح كما أدخلها المستخدم في الشجرة — لربط التحليل بها */
+  candidates: ObjectionCandidate[];
 }) {
+  // «من تراه أصلح» لا يعرض إلا الموجودين فعلًا، وبلا الحاضن الحالي
+  const availableOptions = candidates.filter(
+    (candidate) => candidate.status !== "absent" && candidate.label !== custodianLabel,
+  );
+
+  // ملخص مدخلات الشجرة — يُرسَل إلى المحلّل ليكون جوابه متسقًا معها
+  const treeSummary = candidates
+    .map((candidate) => {
+      const reasons = candidate.reasons.length ? ` (${candidate.reasons.join("، ")})` : "";
+      return `${candidate.label}: ${STATUS_AR[candidate.status]}${reasons}`;
+    })
+    .join(" | ");
   const [satisfied, setSatisfied] = useState<null | boolean>(null);
 
   const [reason, setReason] = useState("");
@@ -79,9 +97,9 @@ export default function CustodyObjection({
       const response = await fetch("/api/analyze-objection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // الحد الأدنى فقط: لا اسم محضون ولا أي بيان شخصي — حالات مجرّدة
         body: JSON.stringify({
           childId: id,
-          childName: childLabel,
           childAge: ageYears,
           currentCustodian: custodianLabel,
           resultLabel,
@@ -89,6 +107,7 @@ export default function CustodyObjection({
           preferredCustodian: preferred === "other" ? preferredOther : preferred,
           benefitsWithAlternative: benefitsWith,
           benefitsLost: benefitsLost,
+          treeSummary,
         }),
       });
 
@@ -186,12 +205,18 @@ export default function CustodyObjection({
               onChange={(event) => setPreferred(event.target.value)}
               className="field"
             >
-              {PREFERRED_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
+              <option value="">— اختر —</option>
+              {availableOptions.map((option) => (
+                <option key={option.label} value={option.label}>
                   {option.label}
+                  {option.status === "forfeited" ? " (أفدت بسقوط حقه)" : ""}
                 </option>
               ))}
+              <option value="other">شخص آخر</option>
             </select>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              تظهر هنا من أفدت بوجودهم فقط، دون الحاضن الحالي. لاختيار غيرهم استخدم «شخص آخر».
+            </p>
             {preferred === "other" && (
               <input
                 type="text"
@@ -243,8 +268,9 @@ export default function CustodyObjection({
           </button>
 
           <p className="text-[11px] leading-relaxed text-slate-400">
-            يُرسَل ما كتبته ونتيجة الأداة إلى خدمة تحليل خارجية لإصدار تحليل استرشادي.
-            التحليل لا يغيّر النتيجة ولا يقرر انتقال الحضانة، والقرار النهائي للمحكمة.
+            عند الضغط يُرسَل ما كتبته في هذه الخانات ونتيجة الأداة (حالات مجرّدة بلا أسماء
+            ولا بيانات شخصية) إلى خدمة تحليل خارجية لإصدار تحليل استرشادي. التحليل لا يغيّر
+            النتيجة ولا يقرر انتقال الحضانة، والقرار النهائي للمحكمة.
           </p>
 
           {/* تنبيه المطور عند غياب المفتاح */}
