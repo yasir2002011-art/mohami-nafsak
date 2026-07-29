@@ -70,6 +70,8 @@ export default function CustodyObjection({
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [missingKey, setMissingKey] = useState(false);
+  // مربّع تأكيد يظهر قبل الإرسال ولا يُرسَل شيء حتى يوافق المستخدم عليه
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const canAnalyze =
     reason.trim().length >= MIN_REASON &&
@@ -259,7 +261,7 @@ export default function CustodyObjection({
 
           <button
             type="button"
-            onClick={() => analyzeCustodyObjection(childId)}
+            onClick={() => setConfirmOpen(true)}
             disabled={!canAnalyze || busy}
             className="btn-brand !py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -267,10 +269,53 @@ export default function CustodyObjection({
             {busy ? "جارٍ التحليل..." : "تحليل أسباب الاعتراض بالذكاء الاصطناعي"}
           </button>
 
+          {/* مربّع تأكيد الإرسال — لا يُرسَل شيء إلا بموافقة المستخدم */}
+          {confirmOpen && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+            >
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+                <h4 className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+                    <Icon name="lock" className="h-4 w-4" />
+                  </span>
+                  تأكيد الإرسال للتحليل
+                </h4>
+                <p className="mt-3 text-sm leading-relaxed text-slate-700">
+                  يُرسَل ما كتبته في هذه الخانات ونتيجة الأداة إلى خدمة تحليل خارجية
+                  (Gemini) — <span className="font-extrabold">حالات مجرّدة بلا أسماء</span>{" "}
+                  ولا بيانات شخصية. التحليل استرشادي، لا يغيّر النتيجة ولا يقرر انتقال
+                  الحضانة، والقرار النهائي للمحكمة.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmOpen(false);
+                      analyzeCustodyObjection(childId);
+                    }}
+                    className="btn-brand !py-2 text-sm"
+                  >
+                    موافق، أرسِل للتحليل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmOpen(false)}
+                    className="btn-ghost !py-2 text-sm"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <p className="text-[11px] leading-relaxed text-slate-400">
-            عند الضغط يُرسَل ما كتبته في هذه الخانات ونتيجة الأداة (حالات مجرّدة بلا أسماء
-            ولا بيانات شخصية) إلى خدمة تحليل خارجية لإصدار تحليل استرشادي. التحليل لا يغيّر
-            النتيجة ولا يقرر انتقال الحضانة، والقرار النهائي للمحكمة.
+            لن يُرسَل شيء إلا بعد موافقتك في مربّع التأكيد. وما يُرسَل حالاتٌ مجرّدة بلا أسماء
+            ولا بيانات شخصية. التحليل لا يغيّر النتيجة ولا يقرر انتقال الحضانة، والقرار
+            النهائي للمحكمة.
           </p>
 
           {/* تنبيه المطور عند غياب المفتاح */}

@@ -394,7 +394,7 @@ export default function CustodyChecker({
       {step > 0 && step < 6 && (
         <p className="flex items-center gap-2 text-xs text-slate-400 no-print">
           <Icon name="lock" className="h-3.5 w-3.5" />
-          كل ما تدخله يبقى في متصفحك ولا يُرسل إلى الخادم ولا يُحفظ.
+          إجاباتك على هذه الأسئلة تبقى في متصفحك ولا تُرسل إلى الخادم ولا تُحفظ إلا بموافقتك.
         </p>
       )}
     </div>

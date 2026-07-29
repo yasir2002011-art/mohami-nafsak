@@ -605,7 +605,7 @@ function PrivacyNote() {
   return (
     <p className="mt-6 flex items-center gap-2 text-xs text-slate-400">
       <Icon name="lock" className="h-3.5 w-3.5" />
-      إجاباتك تبقى في متصفحك ولا تُرسل إلى الخادم ولا تُحفظ.
+      إجاباتك على هذه الأسئلة تبقى في متصفحك ولا تُرسل إلى الخادم ولا تُحفظ إلا بموافقتك.
     </p>
   );
 }
