@@ -14,7 +14,13 @@ import path from "node:path";
  */
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+/** نموذج احتياطي يُجرَّب إذا فشل النموذج الأساسي بخطأ عابر */
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-2.0-flash";
 const MIN_REASON = 10;
+
+/** أخطاء عابرة من الخدمة تستحق إعادة المحاولة (ضغط مؤقت أو حدّ لحظي) */
+const TRANSIENT = new Set([429, 500, 502, 503, 504]);
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** نصوص المواد المرجعية — تُقرأ من ملف بيانات منفصل عن الكود */
 async function legalReference(): Promise<string> {
@@ -112,23 +118,66 @@ ${details.treeSummary || "لم تُذكر"}
 
 حلّل هذا الاعتراض وفق التعليمات والقيود، وأخرِج الفقرات الست المرقّمة.`;
 
+  // خطة المحاولات: النموذج الأساسي مرتين (لعبور خطأ 503 العابر) ثم النموذج الاحتياطي
+  const attempts = [MODEL, MODEL, FALLBACK_MODEL];
+  let last: { status: number; detail: string } = { status: 0, detail: "" };
+
+  for (let i = 0; i < attempts.length; i += 1) {
+    const outcome = await callGemini(attempts[i], apiKey, SYSTEM_PROMPT, userPrompt);
+    if (outcome.ok) {
+      return NextResponse.json({ ok: true, analysis: outcome.analysis });
+    }
+    last = { status: outcome.status, detail: outcome.detail };
+    // مهلة تصاعدية قصيرة قبل المحاولة التالية
+    if (i < attempts.length - 1) await sleep(800 * (i + 1));
+  }
+
+  // فشلت كل المحاولات — نميّز العابر (مشغول مؤقتًا) عن الدائم
+  const transient = TRANSIENT.has(last.status) || last.status === 0;
+  return NextResponse.json(
+    {
+      ok: false,
+      retryable: transient,
+      error: transient
+        ? "خدمة التحليل مشغولة مؤقتًا. أعد المحاولة بعد قليل."
+        : `تعذّر الاتصال بخدمة التحليل (${last.status}).`,
+      detail: last.detail.slice(0, 300),
+    },
+    { status: transient ? 503 : 502 },
+  );
+}
+
+/** الحد الأقصى لزمن تنفيذ المسار — يتّسع لإعادة المحاولة والنموذج الاحتياطي */
+export const maxDuration = 30;
+
+type GeminiResult =
+  | { ok: true; analysis: string }
+  | { ok: false; status: number; detail: string };
+
+/** نداء واحد لـ Gemini مع مهلة قصوى لكل محاولة */
+async function callGemini(
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<GeminiResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 9000);
+
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         generationConfig: {
           temperature: 0.4,
           maxOutputTokens: 2048,
           topP: 0.9,
           // نماذج 2.5 تستهلك ميزانية الإخراج في «التفكير» الداخلي؛ نوقفه
-          // لأن المهمة منظّمة ومحددة، فيبقى الإخراج للفقرات الست كاملة.
           thinkingConfig: { thinkingBudget: 0 },
         },
       }),
@@ -136,14 +185,7 @@ ${details.treeSummary || "لم تُذكر"}
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `تعذّر الاتصال بخدمة التحليل (${response.status}).`,
-          detail: detail.slice(0, 400),
-        },
-        { status: 502 },
-      );
+      return { ok: false, status: response.status, detail };
     }
 
     const data = await response.json();
@@ -153,18 +195,13 @@ ${details.treeSummary || "لم تُذكر"}
         .join("")
         .trim() ?? "";
 
-    if (!analysis) {
-      return NextResponse.json(
-        { ok: false, error: "لم تُرجِع خدمة التحليل نصًا." },
-        { status: 502 },
-      );
-    }
-
-    return NextResponse.json({ ok: true, analysis });
+    // رد بلا نص يُعامل كخطأ عابر ليُعاد أو يُجرَّب النموذج الاحتياطي
+    if (!analysis) return { ok: false, status: 502, detail: "empty" };
+    return { ok: true, analysis };
   } catch {
-    return NextResponse.json(
-      { ok: false, error: "حدث خطأ أثناء التحليل. حاول مرة أخرى." },
-      { status: 500 },
-    );
+    // انقطاع أو تجاوز المهلة — عابر
+    return { ok: false, status: 0, detail: "network" };
+  } finally {
+    clearTimeout(timer);
   }
 }

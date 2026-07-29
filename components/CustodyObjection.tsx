@@ -69,6 +69,7 @@ export default function CustodyObjection({
   const [busy, setBusy] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(false);
   const [missingKey, setMissingKey] = useState(false);
   // مربّع تأكيد يظهر قبل الإرسال ولا يُرسَل شيء حتى يوافق المستخدم عليه
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -92,6 +93,7 @@ export default function CustodyObjection({
     if (!canAnalyze || busy) return;
     setBusy(true);
     setError(null);
+    setRetryable(false);
     setMissingKey(false);
     setAnalysis(null);
 
@@ -120,9 +122,11 @@ export default function CustodyObjection({
         setAnalysis(data.analysis as string);
       } else {
         setError(data.error ?? "تعذّر التحليل.");
+        setRetryable(Boolean(data.retryable));
       }
     } catch {
-      setError("تعذّر الاتصال. تحقّق من الشبكة وحاول مرة أخرى.");
+      setError("تعذّر الاتصال. تحقّق من الشبكة وأعد المحاولة.");
+      setRetryable(true);
     } finally {
       setBusy(false);
     }
@@ -328,8 +332,18 @@ export default function CustodyObjection({
           )}
 
           {error && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700">
-              {error}
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+              <p className="font-bold">{error}</p>
+              {retryable && (
+                <button
+                  type="button"
+                  onClick={() => analyzeCustodyObjection(childId)}
+                  disabled={busy}
+                  className="btn-brand mt-2 !px-4 !py-1.5 text-xs disabled:opacity-40"
+                >
+                  {busy ? "جارٍ المحاولة..." : "أعد المحاولة"}
+                </button>
+              )}
             </div>
           )}
 
