@@ -38,9 +38,26 @@ const securityHeaders = [
     : []),
 ];
 
+/** الدومين الرسمي — تُوحَّد عليه كل العناوين البديلة */
+const CANONICAL_HOST = "mohaminafsak.com";
+const ALTERNATE_HOSTS = ["www.mohaminafsak.com", "mohami-nafsak.vercel.app"];
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  /**
+   * توحيد العنوان: www والرابط القديم على vercel.app يحوّلان تحويلًا دائمًا
+   * إلى الدومين الرسمي، فلا يظهر الموقع لمحركات البحث بأكثر من عنوان،
+   * وتبقى الروابط القديمة المنشورة تعمل.
+   */
+  async redirects() {
+    return ALTERNATE_HOSTS.map((host) => ({
+      source: "/:path*",
+      has: [{ type: "host" as const, value: host }],
+      destination: `https://${CANONICAL_HOST}/:path*`,
+      permanent: true,
+    }));
+  },
   async headers() {
     return [
       {
