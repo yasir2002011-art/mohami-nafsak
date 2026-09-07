@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Icon from "@/components/Icon";
 import LawyerContact from "@/components/LawyerContact";
 import CustodyObjection from "@/components/CustodyObjection";
@@ -40,6 +40,38 @@ const STEPS = [
 ] as const;
 
 /**
+ * تاريخ اليوم بالتقويمين.
+ *
+ * يُحسب في المتصفح بعد التحميل لا على الخادم: صفحة الأداة مولَّدة ساكنة وقت
+ * البناء، فلو حُسب هناك لتجمّد عند آخر نشر. الحساب بعد التحميل يجعله يتحدّث
+ * يومًا بيوم على ساعة الجهاز، ويتفادى تعارض الترطيب بين الخادم والمتصفح.
+ * اليوم الهجري يُحدَّد بتوقيت الرياض بغض النظر عن منطقة الجهاز.
+ */
+const noopSubscribe = () => () => {};
+
+/** مفتاح اليوم الهجري كنص — يُقارن بالقيمة فلا يسبب إعادة عرض بلا داعٍ */
+function todayKey(): string {
+  const h = todayHijri();
+  return `${h.year}-${h.month}-${h.day}`;
+}
+
+function useToday(): { label: string; dual: string } | null {
+  // لقطة الخادم فارغة: عند الترطيب يُعرض بديل مؤقت ثم تُقرأ قيمة المتصفح
+  const key = useSyncExternalStore(noopSubscribe, todayKey, () => "");
+  return useMemo(() => {
+    if (!key) return null;
+    const [year, month, day] = key.split("-").map(Number);
+    const hijri: HijriDate = { year, month, day };
+    const label = formatHijri(hijri);
+    const gregorian = hijriToGregorian(hijri);
+    return {
+      label,
+      dual: gregorian ? `${label} الموافق ${formatGregorianAr(gregorian)}` : label,
+    };
+  }, [key]);
+}
+
+/**
  * كاشف مستحق الحضانة.
  * كل البيانات تبقى في المتصفح ولا تُرسل إلى الخادم.
  */
@@ -47,13 +79,12 @@ export default function CustodyChecker({
   config,
   toolId,
   lawyers,
-  todayLabel,
 }: {
   config: CustodyRuleConfig;
   toolId: string;
   lawyers: Lawyer[];
-  todayLabel: string;
 }) {
+  const today = useToday();
   const [step, setStep] = useState(0);
   const [items, setItems] = useState<Child[]>([blankChild(0)]);
   const [states, setStates] = useState<CandidateStates>(() => emptyStates(config));
@@ -114,13 +145,13 @@ export default function CustodyChecker({
     <div className="space-y-6">
       <Stepper current={step} />
 
-      {step === 0 && <Intro config={config} todayLabel={todayLabel} onStart={goNext} />}
+      {step === 0 && <Intro config={config} todayLabel={today?.label ?? "…"} onStart={goNext} />}
 
       {step === 1 && (
         <ChildrenStep
           items={items}
           setItems={setItems}
-          todayLabel={todayLabel}
+          todayDual={today?.dual ?? "…"}
           endAge={config.ageThresholds.end}
         />
       )}
@@ -533,12 +564,13 @@ function TriRow({
 function ChildrenStep({
   items,
   setItems,
-  todayLabel,
+  todayDual,
   endAge,
 }: {
   items: Child[];
   setItems: (value: Child[]) => void;
-  todayLabel: string;
+  /** تاريخ اليوم بالتقويمين — يُحسب في المتصفح (انظر useToday) */
+  todayDual: string;
   /** سن انتهاء الحضانة — عنده فقط يظهر خيار «غير قادر على رعاية نفسه» */
   endAge: number;
 }) {
@@ -553,12 +585,6 @@ function ChildrenStep({
       ),
     );
   };
-
-  // تاريخ اليوم بالتقويمين — يُحسب عند كل عرض فيتحدّث يومًا بيوم
-  const todayG = hijriToGregorian(todayHijri());
-  const todayDual = todayG
-    ? `${todayLabel} الموافق ${formatGregorianAr(todayG)}`
-    : todayLabel;
 
   return (
     <Card

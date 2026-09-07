@@ -8,7 +8,6 @@ import AdSlot from "@/components/AdSlot";
 import EngineRunner from "@/components/EngineRunner";
 import CustodyChecker from "@/components/CustodyChecker";
 import { getAll, getEngine, getModuleConfig } from "@/lib/store";
-import { formatHijri, todayHijri } from "@/lib/hijri";
 import type { Lawyer, LawyerAssignment } from "@/types";
 import type { CustodyRuleConfig } from "@/types/custody";
 
@@ -117,12 +116,7 @@ export default async function ToolPage({
         )}
 
         {tool.kind === "module" && moduleConfig && (
-          <CustodyChecker
-            config={moduleConfig}
-            toolId={tool.id}
-            lawyers={matchedLawyers}
-            todayLabel={formatHijri(todayHijri())}
-          />
+          <CustodyChecker config={moduleConfig} toolId={tool.id} lawyers={matchedLawyers} />
         )}
 
         {tool.kind === "module" && !moduleConfig && (
