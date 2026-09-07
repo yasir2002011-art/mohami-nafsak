@@ -106,7 +106,7 @@ export function parseISODate(value: string): GregorianDate | null {
   return { year, month, day };
 }
 
-const GREGORIAN_MONTHS_AR = [
+export const GREGORIAN_MONTHS_AR = [
   "يناير",
   "فبراير",
   "مارس",
@@ -123,6 +123,23 @@ const GREGORIAN_MONTHS_AR = [
 
 export function formatGregorianAr(date: GregorianDate): string {
   return `${date.day} ${GREGORIAN_MONTHS_AR[date.month - 1] ?? ""} ${date.year}م`;
+}
+
+/**
+ * تحقق من صحة تاريخ ميلادي مُدخل، بما في ذلك عدد أيام الشهر والسنوات الكبيسة
+ * (فـ 31 فبراير و29 فبراير في سنة غير كبيسة مرفوضان).
+ */
+export function isValidGregorian(date: Partial<GregorianDate>): date is GregorianDate {
+  const { year, month, day } = date;
+  if (!year || !month || !day) return false;
+  if (year < 1850 || year > 2100) return false;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  return (
+    probe.getUTCFullYear() === year &&
+    probe.getUTCMonth() === month - 1 &&
+    probe.getUTCDate() === day
+  );
 }
 
 /**

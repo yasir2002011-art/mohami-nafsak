@@ -7,14 +7,16 @@ import CustodyObjection from "@/components/CustodyObjection";
 import {
   formatGregorianAr,
   formatHijri,
+  GREGORIAN_MONTHS_AR,
   gregorianToHijri,
   HIJRI_MONTHS,
   hijriAge,
   hijriToGregorian,
+  isValidGregorian,
   isValidHijri,
-  parseISODate,
   toISODate,
   todayHijri,
+  type GregorianDate,
   type HijriDate,
 } from "@/lib/hijri";
 import { emptyStates, runCustodyChecker } from "@/lib/custody";
@@ -559,6 +561,78 @@ function TriRow({
   );
 }
 
+/* ------------------------- حقول التاريخ الميلادي ------------------------- */
+
+/**
+ * ثلاثة حقول (يوم/شهر/سنة) بدل حقل التاريخ الأصلي للمتصفح.
+ *
+ * السبب: Chromium يفرض اتجاه حقل type="date" من لغة المتصفح لا من الصفحة،
+ * فتُرسم تسمياته العربية معكوسة ومفكّكة في صفحة RTL، ولا يمكن تجاوز ذلك بأي
+ * CSS (جُرّب على الحقل وعلى أجزائه الداخلية). الحقول اليدوية تُرسم صحيحة في
+ * كل المتصفحات وتطابق شكل الحقول الهجرية المجاورة.
+ *
+ * الهجري هو مصدر الحقيقة: القيمة المعروضة مشتقة منه، وعند اكتمال تاريخ ميلادي
+ * صحيح يُحوَّل ويُحفظ هجريًا. المكوّن يُعاد تهيئته بمفتاح القيمة المشتقة (من
+ * الأب)، فلا تُمسح المسودة أثناء الكتابة، ولا تتخلّف عن تعديل الجانب الهجري.
+ */
+function GregorianFields({
+  value,
+  onChange,
+}: {
+  value: GregorianDate | null;
+  onChange: (date: GregorianDate) => void;
+}) {
+  const [draft, setDraft] = useState(() => ({
+    day: value ? String(value.day) : "",
+    month: value ? String(value.month) : "",
+    year: value ? String(value.year) : "",
+  }));
+
+  const update = (patch: Partial<typeof draft>) => {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    const candidate = { day: Number(next.day), month: Number(next.month), year: Number(next.year) };
+    if (isValidGregorian(candidate)) onChange(candidate);
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={31}
+        value={draft.day}
+        onChange={(event) => update({ day: event.target.value })}
+        className="field"
+        placeholder="اليوم"
+      />
+      <select
+        value={draft.month}
+        onChange={(event) => update({ month: event.target.value })}
+        className="field"
+      >
+        <option value="">الشهر</option>
+        {GREGORIAN_MONTHS_AR.map((month, monthIndex) => (
+          <option key={month} value={monthIndex + 1}>
+            {month}
+          </option>
+        ))}
+      </select>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1850}
+        max={2100}
+        value={draft.year}
+        onChange={(event) => update({ year: event.target.value })}
+        className="field"
+        placeholder="السنة"
+      />
+    </div>
+  );
+}
+
 /* ------------------------------ خطوة المحضونين ------------------------------ */
 
 function ChildrenStep({
@@ -694,33 +768,23 @@ function ChildrenStep({
               />
             </div>
 
-            {/* التقويم الميلادي — مشتق من الهجري ومتزامن معه */}
+            {/* التقويم الميلادي — مشتق من الهجري ومتزامن معه (ثلاثة حقول بدل حقل المتصفح، انظر GregorianFields) */}
             <span className="mb-1 mt-3 block text-[11px] font-bold text-brand-700">ميلادي</span>
-            {/* اتجاه LTR إلزامي: حقل التاريخ الأصلي في Chromium يرسم أجزاءه بحروف معكوسة داخل صفحة RTL */}
-            <input
-              type="date"
-              dir="ltr"
-              min="1850-01-01"
-              max="2100-12-31"
-              value={
-                isValidHijri(child.birth)
-                  ? (() => {
-                      const g = hijriToGregorian(child.birth);
-                      return g ? toISODate(g) : "";
-                    })()
-                  : ""
-              }
-              onChange={(event) => {
-                const g = parseISODate(event.target.value);
-                if (g) {
-                  const h = gregorianToHijri(
-                    new Date(Date.UTC(g.year, g.month - 1, g.day)),
-                  );
-                  patchBirth(child.id, h);
-                }
-              }}
-              className="field"
-            />
+            {(() => {
+              const g = isValidHijri(child.birth) ? hijriToGregorian(child.birth) : null;
+              return (
+                <GregorianFields
+                  key={g ? toISODate(g) : "empty"}
+                  value={g}
+                  onChange={(date) =>
+                    patchBirth(
+                      child.id,
+                      gregorianToHijri(new Date(Date.UTC(date.year, date.month - 1, date.day))),
+                    )
+                  }
+                />
+              );
+            })()}
 
             {isValidHijri(child.birth) &&
               (() => {
