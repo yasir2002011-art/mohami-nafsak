@@ -696,8 +696,10 @@ function ChildrenStep({
 
             {/* التقويم الميلادي — مشتق من الهجري ومتزامن معه */}
             <span className="mb-1 mt-3 block text-[11px] font-bold text-brand-700">ميلادي</span>
+            {/* اتجاه LTR إلزامي: حقل التاريخ الأصلي في Chromium يرسم أجزاءه بحروف معكوسة داخل صفحة RTL */}
             <input
               type="date"
+              dir="ltr"
               min="1850-01-01"
               max="2100-12-31"
               value={
