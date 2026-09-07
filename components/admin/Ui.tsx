@@ -1,4 +1,5 @@
 import React from "react";
+import DateFields from "@/components/admin/DateFields";
 
 export function PageHeader({
   title,
@@ -47,15 +48,25 @@ export function Field({
       <label className="label" htmlFor={name}>
         {label}
       </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        required={required}
-        className="field"
-      />
+      {type === "date" ? (
+        // حقل تاريخ ثلاثي بدل حقل المتصفح الذي يعكس الحروف العربية في Chrome — انظر DateFields
+        <DateFields
+          id={name}
+          name={name}
+          defaultValue={defaultValue === undefined ? undefined : String(defaultValue)}
+          required={required}
+        />
+      ) : (
+        <input
+          id={name}
+          name={name}
+          type={type}
+          defaultValue={defaultValue}
+          placeholder={placeholder}
+          required={required}
+          className="field"
+        />
+      )}
       {hint && <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{hint}</p>}
     </div>
   );
