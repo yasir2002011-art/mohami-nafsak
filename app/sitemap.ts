@@ -2,6 +2,9 @@ import type { MetadataRoute } from "next";
 import { getAll } from "@/lib/store";
 import { siteUrl } from "@/lib/site";
 
+/** تحديث دوري كالصفحات العامة — خريطة الموقع مسار مستقل لا يرثه من التخطيط الجذري */
+export const revalidate = 300;
+
 /** خريطة الموقع — تُبنى من البيانات فلا تحتاج تحديثًا يدويًا عند إضافة أداة أو مقال */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
