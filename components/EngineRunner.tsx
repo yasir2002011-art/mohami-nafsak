@@ -263,10 +263,10 @@ function MultiChoice({
 /* -------------------------------- النتيجة -------------------------------- */
 
 const TONE_STYLES = {
-  positive: { bar: "from-teal-400 to-emerald-500", chip: "bg-emerald-100 text-emerald-800", icon: "check" },
-  neutral: { bar: "from-brand-500 to-brand-400", chip: "bg-brand-50 text-slate-700", icon: "sparkle" },
-  caution: { bar: "from-amber-400 to-orange-400", chip: "bg-amber-100 text-amber-800", icon: "clock" },
-  warning: { bar: "from-rose-600 to-rose-500", chip: "bg-rose-100 text-rose-800", icon: "alert" },
+  positive: { bar: "from-emerald-600 to-emerald-600", chip: "bg-emerald-100 text-emerald-800", icon: "check" },
+  neutral: { bar: "from-brand-900 to-brand-900", chip: "bg-brand-50 text-slate-700", icon: "sparkle" },
+  caution: { bar: "from-amber-500 to-amber-500", chip: "bg-amber-100 text-amber-800", icon: "clock" },
+  warning: { bar: "from-rose-600 to-rose-600", chip: "bg-rose-100 text-rose-800", icon: "alert" },
 } as const;
 
 function ResultCard({

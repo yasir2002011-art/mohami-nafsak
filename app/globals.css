@@ -17,7 +17,7 @@
   --muted: #6b6f76;
   --line: #e6e1d8;
   /* مشتق وحيد: ذهبي داكن للنص الذهبي على الخلفيات الفاتحة (‎--gold‎ نفسه لا يحقق تباين AA هناك) */
-  --gold-ink: #8a6f33;
+  --gold-ink: #846a30;
 
   --gradient-hero: linear-gradient(180deg, var(--bg), var(--bg));
   --gradient-brand: linear-gradient(135deg, var(--ink) 0%, var(--ink-2) 100%);
@@ -51,8 +51,8 @@
   --color-gold-300: #c6a75e;
   --color-gold-400: #c6a75e;
   --color-gold-500: #c6a75e;
-  --color-gold-600: #8a6f33;
-  --color-gold-700: #8a6f33;
+  --color-gold-600: #846a30;
+  --color-gold-700: #846a30;
 
   --color-slate-50: #f8f6f1;
   --color-slate-100: #f8f6f1;

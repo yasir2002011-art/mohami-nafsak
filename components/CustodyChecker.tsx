@@ -841,27 +841,27 @@ const OUTCOME_STYLES: Record<
   { bar: string; chip: string; icon: string }
 > = {
   assigned: {
-    bar: "from-emerald-500 to-teal-500",
+    bar: "from-emerald-600 to-emerald-600",
     chip: "bg-emerald-100 text-emerald-800",
     icon: "check",
   },
   obligated: {
-    bar: "from-brand-600 to-brand-500",
+    bar: "from-brand-900 to-brand-900",
     chip: "bg-brand-50 text-brand-800",
     icon: "gavel",
   },
   childChooses: {
-    bar: "from-sky-500 to-cyan-500",
-    chip: "bg-sky-100 text-sky-800",
+    bar: "from-brand-700 to-brand-700",
+    chip: "bg-brand-50 text-brand-800",
     icon: "question",
   },
   ended: {
-    bar: "from-slate-400 to-slate-300",
+    bar: "from-slate-400 to-slate-400",
     chip: "bg-slate-100 text-slate-700",
     icon: "clock",
   },
   courtDiscretion: {
-    bar: "from-amber-500 to-orange-500",
+    bar: "from-amber-500 to-amber-500",
     chip: "bg-amber-100 text-amber-800",
     icon: "alert",
   },

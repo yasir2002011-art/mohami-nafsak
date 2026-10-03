@@ -72,7 +72,7 @@ export default async function AdminLayout({
           <form action="/api/admin/logout" method="post">
             <button
               type="submit"
-              className="mt-1 w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-rose-600 hover:bg-rose-50"
+              className="mt-1 w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-rose-700 hover:bg-rose-50"
             >
               تسجيل الخروج
             </button>
