@@ -2,43 +2,74 @@
 
 /* ==========================================================================
    محامي نفسك — الهوية البصرية
-   طابع قانوني مهني: كحلي عميق للثقة، زمردي للحسم، ذهبي خفيف للتمييز.
+   مؤسسة قانونية هادئة: مساحات واسعة، حبر كحلي، ولون تمييز واحد (الذهبي).
+   هذا الملف هو المصدر الوحيد للألوان والخطوط؛ بقية الواجهة تشتق منه.
    ========================================================================== */
 
-@theme {
-  /* اللون الأساسي — كحلي قانوني */
-  --color-brand-50: #eff6fb;
-  --color-brand-100: #d8e9f5;
-  --color-brand-200: #b3d2e9;
-  --color-brand-300: #83b3d7;
-  --color-brand-400: #4f8dbf;
-  --color-brand-500: #2f6d9f;
-  --color-brand-600: #205684;
-  --color-brand-700: #1a446b;
-  --color-brand-800: #163a5a;
-  --color-brand-900: #0f2942;
-  --color-brand-950: #091b2d;
+:root {
+  --bg: #f8f6f1;
+  --surface: #ffffff;
+  --ink: #0b1f2a;
+  --ink-2: #14303d;
+  --gold: #c6a75e;
+  --gold-soft: #efe6cf;
+  --text: #1c1c1c;
+  --muted: #6b6f76;
+  --line: #e6e1d8;
+  /* مشتق وحيد: ذهبي داكن للنص الذهبي على الخلفيات الفاتحة (‎--gold‎ نفسه لا يحقق تباين AA هناك) */
+  --gold-ink: #8a6f33;
 
-  /* لون التمييز — ذهبي هادئ */
-  --color-gold-50: #fdf8ed;
-  --color-gold-100: #f8ecd0;
-  --color-gold-200: #f0d79c;
-  --color-gold-300: #e5bd64;
-  --color-gold-400: #d9a33c;
-  --color-gold-500: #c9882a;
-  --color-gold-600: #a86a22;
-  --color-gold-700: #854f20;
-
-  --font-sans: "Tajawal", "Cairo", "Segoe UI", "Tahoma", system-ui, sans-serif;
-
-  --radius-card: 1.25rem;
+  --gradient-hero: linear-gradient(180deg, var(--bg), var(--bg));
+  --gradient-brand: linear-gradient(135deg, var(--ink) 0%, var(--ink-2) 100%);
+  --shadow-soft: 0 8px 30px rgba(11, 31, 42, 0.06);
+  --shadow-lift: 0 12px 36px rgba(11, 31, 42, 0.1);
 }
 
-:root {
-  --gradient-hero: linear-gradient(180deg, #f7fafd 0%, #ffffff 100%);
-  --gradient-brand: linear-gradient(135deg, #1a446b 0%, #205684 50%, #2f6d9f 100%);
-  --shadow-soft: 0 4px 20px -6px rgba(15, 41, 66, 0.12);
-  --shadow-lift: 0 18px 45px -18px rgba(15, 41, 66, 0.28);
+/*
+ * سلالم الألوان المستخدمة في أصناف Tailwind عبر المشروع (brand / gold / slate)
+ * مُعاد توجيهها إلى الرموز أعلاه، فيتغيّر الموقع كله من هنا. القيم الوسيطة
+ * مشتقة بالمزج من ‎--text‎ و‎--muted‎ والأبيض لا ألوانًا جديدة.
+ * ألوان الحالة (أخضر/أصفر/أحمر) تبقى على افتراضي Tailwind لأنها تحمل معنى
+ * قانونيًا داخل نتائج الكواشف فقط.
+ */
+@theme {
+  --color-brand-50: #efe6cf;
+  --color-brand-100: #efe6cf;
+  --color-brand-200: #e6e1d8;
+  --color-brand-300: #c6a75e;
+  --color-brand-400: #6b6f76;
+  --color-brand-500: #14303d;
+  --color-brand-600: #14303d;
+  --color-brand-700: #14303d;
+  --color-brand-800: #0b1f2a;
+  --color-brand-900: #0b1f2a;
+  --color-brand-950: #0b1f2a;
+
+  --color-gold-50: #efe6cf;
+  --color-gold-100: #efe6cf;
+  --color-gold-200: #e6e1d8;
+  --color-gold-300: #c6a75e;
+  --color-gold-400: #c6a75e;
+  --color-gold-500: #c6a75e;
+  --color-gold-600: #8a6f33;
+  --color-gold-700: #8a6f33;
+
+  --color-slate-50: #f8f6f1;
+  --color-slate-100: #f8f6f1;
+  --color-slate-200: #e6e1d8;
+  --color-slate-300: #bcbec1;
+  --color-slate-400: #6b6f76;
+  --color-slate-500: #6b6f76;
+  --color-slate-600: #474a4e;
+  --color-slate-700: #303133;
+  --color-slate-800: #1c1c1c;
+  --color-slate-900: #1c1c1c;
+  --color-slate-950: #0b1f2a;
+
+  --font-sans: "IBM Plex Sans Arabic", "Segoe UI", "Tahoma", system-ui, sans-serif;
+  --font-logo: "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif;
+
+  --radius-card: 1.25rem;
 }
 
 * {
@@ -50,11 +81,20 @@ html {
 }
 
 body {
-  background-color: #ffffff;
-  color: #0f2942;
+  background-color: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.8;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+}
+
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 
 /* ------------------------------- مكوّنات مساعدة ------------------------------- */
@@ -64,31 +104,59 @@ body {
 }
 
 .text-gradient {
-  background-image: var(--gradient-brand);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--ink);
+}
+
+/* عرض سطر مريح للقراءة */
+.measure {
+  max-width: 65ch;
+}
+
+/* الشريط العلوي: 32px بلون الحبر وخط ذهبي 2px أسفله */
+.top-bar {
+  height: 32px;
+  background: var(--ink);
+  border-bottom: 2px solid var(--gold);
+}
+
+/* الواجهة: حبر بتدرج خفيف ونقش هندسي إسلامي بشفافية 6% */
+.hero-ink {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%);
+  color: #fff;
+}
+
+.hero-ink::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1'%3E%3Crect x='20' y='20' width='40' height='40'/%3E%3Crect x='20' y='20' width='40' height='40' transform='rotate(45 40 40)'/%3E%3Cpath d='M0 40h11.7M68.3 40H80M40 0v11.7M40 68.3V80'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 80px 80px;
+  pointer-events: none;
 }
 
 .card-soft {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-soft);
 }
 
 .card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .card-hover:hover {
-  transform: translateY(-3px);
   box-shadow: var(--shadow-lift);
-  border-color: var(--color-brand-300);
+  border-color: var(--gold);
 }
 
+/* الزر الأساسي على الخلفيات الفاتحة: حبر */
 .btn-brand {
-  background-color: var(--color-brand-700);
+  background-color: var(--ink);
   color: #fff;
   border-radius: 0.75rem;
   padding: 0.75rem 1.6rem;
@@ -96,20 +164,34 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  box-shadow: var(--shadow-soft);
-  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .btn-brand:hover {
-  background-color: var(--color-brand-800);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lift);
+  background-color: var(--ink-2);
+}
+
+/* الزر الأساسي على الخلفيات الداكنة (الرأس والواجهة): ذهبي بنص الحبر */
+.btn-gold {
+  background-color: var(--gold);
+  color: var(--ink);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.6rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s ease;
+}
+
+.btn-gold:hover {
+  background-color: #d1b673;
 }
 
 .btn-ghost {
-  border: 1.5px solid var(--color-brand-200);
-  color: var(--color-brand-700);
-  background: #fff;
+  border: 1.5px solid var(--line);
+  color: var(--ink);
+  background: var(--surface);
   border-radius: 0.75rem;
   padding: 0.7rem 1.5rem;
   font-weight: 700;
@@ -120,26 +202,85 @@ body {
 }
 
 .btn-ghost:hover {
-  background: var(--color-brand-50);
-  border-color: var(--color-brand-400);
+  background: var(--gold-soft);
+  border-color: var(--gold);
 }
 
-/* حقول الإدخال */
+/* الزر الثانوي على الخلفيات الداكنة: حدود بيضاء */
+.btn-outline-light {
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  color: #fff;
+  border-radius: 0.75rem;
+  padding: 0.7rem 1.5rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #fff;
+}
+
+/* تبويبات الحبوب داخل حاوية فاتحة */
+.pill-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 1.75rem;
+}
+
+.pill {
+  border-radius: 9999px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  transition: background 0.2s ease;
+}
+
+.pill:hover {
+  background: var(--gold-soft);
+}
+
+/* صندوق المادة النظامية: حد ذهبي 3px من جهة بداية السطر */
+.legal-box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--gold);
+  border-radius: 0.875rem;
+  padding: 1rem 1.25rem;
+}
+
+/* إخلاء المسؤولية داخل بطاقة النتيجة */
+.disclaimer-note {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.8;
+}
+
+/* حقول الإدخال — حدّها مشتق من ‎--muted‎ ليحقق تباين 3:1 المطلوب لحدود الحقول */
 .field {
   width: 100%;
-  border-radius: 0.65rem;
-  border: 1.5px solid #cbd5e1;
-  background: #fff;
+  border-radius: 0.75rem;
+  border: 1.5px solid #898c91;
+  background: var(--surface);
   padding: 0.65rem 0.9rem;
   font-size: 0.95rem;
-  color: #0f2942;
+  color: var(--text);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .field:focus {
   outline: none;
-  border-color: var(--color-brand-500);
-  box-shadow: 0 0 0 3px rgba(47, 109, 159, 0.15);
+  border-color: var(--ink-2);
+  box-shadow: 0 0 0 3px rgba(198, 167, 94, 0.35);
 }
 
 /*
@@ -161,26 +302,26 @@ input[type="month"] {
   display: block;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #475569;
+  color: #474a4e;
   margin-bottom: 0.35rem;
 }
 
-/* شارات */
+/* وسوم حبوب */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  border-radius: 0.4rem;
-  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  padding: 0.2rem 0.7rem;
   font-size: 0.75rem;
   font-weight: 700;
 }
 
-/* حركة ظهور */
+/* حركة الظهور الوحيدة: 200ms */
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -189,7 +330,7 @@ input[type="month"] {
 }
 
 .rise-in {
-  animation: rise-in 0.4s ease both;
+  animation: rise-in 0.2s ease both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -207,14 +348,14 @@ input[type="month"] {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #bcbec1;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-brand-400);
+  background: var(--muted);
 }
 
 /* الطباعة */

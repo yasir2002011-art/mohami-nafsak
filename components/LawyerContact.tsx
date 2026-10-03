@@ -96,10 +96,10 @@ function LawyerCard({
   };
 
   return (
-    <article className="card-hover rounded-2xl border border-slate-200 bg-white/85 p-4">
+    <article className="card-hover rounded-[20px] border border-slate-200 bg-white p-5">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-3">
-          <span className="brand-gradient flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-extrabold text-white">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-100 text-sm font-bold text-brand-900">
             {lawyer.name.slice(0, 1)}
           </span>
           <div>

@@ -25,49 +25,26 @@ const PATHS: Record<string, string> = {
 
 /**
  * ألوان الأقسام.
- * كلها ضمن الهوية القانونية: الكحلي أساس، ومعه زمردي وسماوي وذهبي هادئ
- * للتمييز بين الأقسام دون خروج عن الطابع المهني.
+ * الهوية بلون تمييز واحد، فكل الأقسام تشترك في المظهر نفسه: دائرة ذهبية
+ * فاتحة بأيقونة حبرية. المفاتيح باقية لأن بيانات الأقسام تشير إليها.
  */
+const ACCENT = {
+  bg: "bg-gold-100",
+  text: "text-brand-900",
+  ring: "ring-gold-200",
+  grad: "from-brand-900 to-brand-700",
+};
+
 export const ACCENT_CLASSES: Record<
   AccentColor,
   { bg: string; text: string; ring: string; grad: string }
 > = {
-  rose: {
-    bg: "bg-brand-50",
-    text: "text-brand-800",
-    ring: "ring-brand-200",
-    grad: "from-brand-700 to-brand-500",
-  },
-  violet: {
-    bg: "bg-brand-50",
-    text: "text-brand-700",
-    ring: "ring-brand-200",
-    grad: "from-brand-800 to-brand-600",
-  },
-  coral: {
-    bg: "bg-gold-100",
-    text: "text-gold-700",
-    ring: "ring-gold-200",
-    grad: "from-gold-600 to-gold-400",
-  },
-  mint: {
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    ring: "ring-emerald-200",
-    grad: "from-emerald-700 to-emerald-500",
-  },
-  sky: {
-    bg: "bg-sky-50",
-    text: "text-sky-700",
-    ring: "ring-sky-200",
-    grad: "from-sky-700 to-sky-500",
-  },
-  amber: {
-    bg: "bg-gold-100",
-    text: "text-gold-700",
-    ring: "ring-gold-200",
-    grad: "from-gold-600 to-gold-400",
-  },
+  rose: ACCENT,
+  violet: ACCENT,
+  coral: ACCENT,
+  mint: ACCENT,
+  sky: ACCENT,
+  amber: ACCENT,
 };
 
 export default function Icon({

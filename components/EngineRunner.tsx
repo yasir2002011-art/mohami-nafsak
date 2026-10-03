@@ -130,7 +130,7 @@ export default function EngineRunner({
                   key={option.id}
                   type="button"
                   onClick={() => answer(question, option.id)}
-                  className="group flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-slate-200 bg-white/80 px-5 py-4 text-right text-base font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-brand-500 hover:bg-brand-50 hover:shadow-lg"
+                  className="group flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-slate-200 bg-white/80 px-5 py-4 text-right text-base font-bold text-slate-800 transition-colors duration-200 hover:border-brand-300 hover:bg-brand-50"
                 >
                   <span>{option.label}</span>
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition group-hover:bg-brand-500 group-hover:text-white">
@@ -376,7 +376,7 @@ function ResultCard({
           />
 
           {/* المصادر النظامية */}
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <section className="legal-box mt-8">
             <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-800">
               <Icon name="scroll" className="h-4 w-4" />
               المصادر النظامية
@@ -387,7 +387,7 @@ function ResultCard({
 
             <ul className="mt-3 space-y-2.5">
               {sources.map((source) => (
-                <li key={source.id} className="rounded-xl bg-white/80 p-3 text-sm">
+                <li key={source.id} className="rounded-xl bg-slate-50 p-3 text-sm">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-slate-800">{source.regulation}</span>
                     {source.article && (

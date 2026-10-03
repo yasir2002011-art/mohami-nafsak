@@ -1060,7 +1060,7 @@ function ResultView({
                 </section>
               )}
 
-              <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <section className="legal-box mt-6">
                 <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
                   <Icon name="scroll" className="h-4 w-4" />
                   المستند النظامي
@@ -1100,7 +1100,7 @@ function ResultView({
         );
       })}
 
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-relaxed text-amber-900">
+      <div className="card-soft disclaimer-note p-5">
         <span className="font-extrabold">تنبيه:</span> هذه النتيجة استرشادية مبنية على ما
         أدخلته، وللمحكمة أن تقرر خلاف الترتيب بناءً على مصلحة المحضون. وهي لا تُغني عن
         استشارة محامٍ مرخّص يطّلع على وقائع حالتك كاملة.

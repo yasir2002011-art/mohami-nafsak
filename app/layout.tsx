@@ -51,7 +51,7 @@ export default function RootLayout({
         {/* القاعدة التالية تخص Pages Router؛ في App Router هذا هو الموضع الصحيح للخط */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@700&display=swap"
           rel="stylesheet"
         />
       </head>

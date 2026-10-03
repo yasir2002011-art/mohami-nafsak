@@ -61,7 +61,7 @@ export default async function SectionPage({
 
           <div className="mt-5 flex items-start gap-4">
             <span
-              className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br ${accent.grad} text-white shadow-lg`}
+              className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${accent.bg} ${accent.text}`}
             >
               <Icon name={section.icon} className="h-8 w-8" />
             </span>

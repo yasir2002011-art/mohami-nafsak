@@ -1,35 +1,23 @@
+import Image from "next/image";
+
 /**
  * شعار «محامي نفسك».
  *
- * الرمز: درع يدل على الحماية النظامية، وبداخله ميزان يدل على العدل،
- * وكفّتاه مفتوحتان لأعلى إشارةً إلى وضوح الميزان أمام المستخدم.
+ * الرمز: درع ذهبي بداخله ميزان تمسك عموده قبضة — المستخدم يمسك ميزان العدل بيده.
+ * الأصول في ‎/public/brand‎ (مشتقة من ‎/brand/option-3‎). الشعار غني بطبيعته،
+ * فيُعرض دائمًا على خلفية الحبر الداكنة (الرأس والتذييل).
  */
-export function LogoMark({ className = "h-10 w-10" }: { className?: string }) {
+export function LogoMark({ className = "h-11 w-auto" }: { className?: string }) {
   return (
-    <span
-      className={`brand-gradient inline-flex items-center justify-center rounded-xl text-white ${className}`}
+    <Image
+      src="/brand/mark.png"
+      alt=""
       aria-hidden="true"
-    >
-      <svg
-        viewBox="0 0 32 32"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-[62%] w-[62%]"
-      >
-        {/* الدرع */}
-        <path d="M16 3.6 6.6 7v7.6c0 5.6 3.9 10.3 9.4 11.8 5.5-1.5 9.4-6.2 9.4-11.8V7L16 3.6Z" />
-        {/* عمود الميزان وعارضته */}
-        <path d="M16 10.4v8.2M11.2 12.1h9.6" />
-        {/* الكفّتان */}
-        <path d="M9 12.1 7.2 15.6a2.2 2.2 0 0 0 3.6 0L9 12.1Z" />
-        <path d="M23 12.1l-1.8 3.5a2.2 2.2 0 0 0 3.6 0L23 12.1Z" />
-        {/* القاعدة */}
-        <path d="M13.4 18.9h5.2" />
-      </svg>
-    </span>
+      width={147}
+      height={176}
+      className={className}
+      priority
+    />
   );
 }
 
@@ -42,23 +30,28 @@ export function LogoWordmark({
 }) {
   return (
     <span className={`flex flex-col leading-tight ${className}`}>
-      <span className="text-lg font-extrabold text-brand-800">محامي نفسك</span>
-      {subtitle && (
-        <span className="text-[11px] font-medium text-brand-400">{subtitle}</span>
-      )}
+      <span className="font-logo text-lg font-bold text-white">محامي نفسك</span>
+      {subtitle && <span className="text-[11px] font-medium text-white/60">{subtitle}</span>}
     </span>
+  );
+}
+
+/** الشعار الكامل باسمه (للتذييل) */
+export function LogoFull({ className = "h-auto w-[140px]" }: { className?: string }) {
+  return (
+    <Image src="/brand/logo.png" alt="محامي نفسك" width={420} height={504} className={className} />
   );
 }
 
 export default function Logo({
   subtitle,
-  markClassName = "h-10 w-10",
+  markClassName = "h-11 w-auto",
 }: {
   subtitle?: string | null;
   markClassName?: string;
 }) {
   return (
-    <span className="flex items-center gap-2.5">
+    <span className="flex items-center gap-3">
       <LogoMark className={markClassName} />
       <LogoWordmark subtitle={subtitle} />
     </span>
