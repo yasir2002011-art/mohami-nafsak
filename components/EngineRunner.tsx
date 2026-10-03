@@ -6,12 +6,13 @@ import { answeredTrail, runEngine, sourcesForResult, type Answers } from "@/lib/
 import type { DecisionEngine, EngineQuestion, EngineResult, Lawyer } from "@/types";
 import LawyerContact from "@/components/LawyerContact";
 import ResultFeedback from "@/components/ResultFeedback";
+import { track, trackToolComplete, trackToolStart, trackToolStep } from "@/lib/track";
 
 /**
  * مشغّل الأداة في المتصفح.
  *
  * الإجابات تبقى في ذاكرة المتصفح فقط ولا تُرسل إلى الخادم ولا تُحفظ.
- * ما يُرسل هو أحداث مجهولة (بدء/إكمال/انسحاب) بلا أي محتوى إجابة.
+ * ما يُرسل هو عدّ مجمّع (بدء، رقم الخطوة، إتمام) بلا أي سؤال أو إجابة أو نتيجة.
  */
 export default function EngineRunner({
   engine,
@@ -29,19 +30,14 @@ export default function EngineRunner({
   const step = useMemo(() => runEngine(engine, answers), [engine, answers]);
   const trail = useMemo(() => answeredTrail(engine, answers), [engine, answers]);
 
-  const ping = (type: string, questionId?: string, resultId?: string) => {
-    // حدث مجهول — بلا أي إجابة أو بيان شخصي
-    void fetch("/api/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, toolId, questionId, resultId }),
-      keepalive: true,
-    }).catch(() => {});
-  };
+  // القمع: رقم ترتيب الخطوة فقط — لا يُرسل السؤال ولا الإجابة
+  useEffect(() => {
+    if (started && step.kind === "question") trackToolStep(toolId, step.answeredCount + 1);
+  }, [started, step.kind, step.answeredCount, toolId]);
 
   const start = () => {
     setStarted(true);
-    ping("tool_start");
+    trackToolStart(toolId);
   };
 
   const answer = (question: EngineQuestion, value: string | string[]) => {
@@ -79,7 +75,7 @@ export default function EngineRunner({
         toolId={toolId}
         lawyers={lawyers}
         onRestart={restart}
-        onMount={() => ping("tool_complete", undefined, step.result?.id)}
+        onMount={() => trackToolComplete(toolId)}
       />
     );
   }
@@ -315,11 +311,7 @@ function ResultCard({
     ].join("\n");
 
     void navigator.clipboard.writeText(text);
-    void fetch("/api/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "result_copy", toolId, resultId: result.id }),
-    }).catch(() => {});
+    track("tool_download", { tool: toolId });
   };
 
   return (
@@ -446,7 +438,14 @@ function ResultCard({
             <button type="button" onClick={copyResult} className="btn-brand">
               نسخ النتيجة
             </button>
-            <button type="button" onClick={() => window.print()} className="btn-ghost">
+            <button
+              type="button"
+              onClick={() => {
+                track("tool_download", { tool: toolId });
+                window.print();
+              }}
+              className="btn-ghost"
+            >
               طباعة
             </button>
             <button type="button" onClick={onRestart} className="btn-ghost">

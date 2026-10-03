@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminSecuritySafe, signIn } from "@/lib/auth";
 import { logAudit } from "@/lib/store";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   // بيئة أمان غير سليمة في الإنتاج — لا تفتح اللوحة حتى تُضبط الأسرار
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   }
 
   // حدّ محاولات الدخول — يعمل بموثوقية عبر النسخ عند تفعيل Upstash
-  const ip = clientIp(request);
+  const ip = clientKey(request);
   const limit = await checkRateLimit(`login:${ip}`, 5, 15 * 60);
   if (!limit.allowed) {
     return NextResponse.json(

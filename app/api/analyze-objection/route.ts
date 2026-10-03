@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 
 /**
  * تحليل استرشادي لأسباب اعتراض المستخدم على نتيجة كاشف الحضانة.
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   }
 
   // حدّ معدّل يحمي رصيد Gemini من الاستنزاف — لكل عنوان
-  const ip = clientIp(request);
+  const ip = clientKey(request);
   const perMinute = await checkRateLimit(`ai:min:${ip}`, 6, 60);
   const perDay = await checkRateLimit(`ai:day:${ip}`, 40, 86400);
   if (!perMinute.allowed || !perDay.allowed) {

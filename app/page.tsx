@@ -3,14 +3,20 @@ import Icon, { ACCENT_CLASSES } from "@/components/Icon";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import AdSlot from "@/components/AdSlot";
-import { getAll } from "@/lib/store";
+import TrackedLink from "@/components/TrackedLink";
+import UsageCount from "@/components/UsageCount";
+import { getAll, getSettings } from "@/lib/store";
+import { DEFAULT_MIN_DISPLAY, getUsageTotals } from "@/lib/metrics";
 
 export default async function HomePage() {
-  const [sections, tools, articles] = await Promise.all([
+  const [sections, tools, articles, usage, settings] = await Promise.all([
     getAll("sections"),
     getAll("tools"),
     getAll("articles"),
+    getUsageTotals(),
+    getSettings(),
   ]);
+  const usageMin = settings.usageMinDisplay ?? DEFAULT_MIN_DISPLAY;
 
   const liveSections = sections.filter((section) => section.published).sort((a, b) => a.order - b.order);
   const liveTools = tools.filter((tool) => tool.published);
@@ -87,12 +93,9 @@ export default async function HomePage() {
               const accent = ACCENT_CLASSES[section.accent];
               const count = liveTools.filter((tool) => tool.sectionId === section.id).length;
 
-              return (
-                <Link
-                  key={section.id}
-                  href={`/sections/${section.slug}`}
-                  className="card-soft card-hover group flex flex-col p-6"
-                >
+              const cardClass = "card-soft card-hover group flex flex-col p-6";
+              const cardBody = (
+                <>
                   <span
                     className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full ${accent.bg} ${accent.text}`}
                   >
@@ -112,7 +115,24 @@ export default async function HomePage() {
                       <Icon name="arrow" className="h-4 w-4" />
                     </span>
                   </div>
+                </>
+              );
+
+              // القسم الموسوم «قريبًا» تُعدّ نقرته (عدّ مجمّع) لمعرفة الطلب عليه
+              return count > 0 ? (
+                <Link key={section.id} href={`/sections/${section.slug}`} className={cardClass}>
+                  {cardBody}
                 </Link>
+              ) : (
+                <TrackedLink
+                  key={section.id}
+                  href={`/sections/${section.slug}`}
+                  event="coming_soon_click"
+                  props={{ section: section.id }}
+                  className={cardClass}
+                >
+                  {cardBody}
+                </TrackedLink>
               );
             })}
           </div>
@@ -167,6 +187,12 @@ export default async function HomePage() {
                         )}
                         <span className="badge bg-gold-100 text-brand-900">مجانية</span>
                       </div>
+                      <UsageCount
+                        uses={usage[tool.id] ?? 0}
+                        min={usageMin}
+                        hidden={tool.showUsage === false}
+                        className="mt-3"
+                      />
                       <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-brand-700">
                         ابدأ الأداة
                         <Icon name="arrow" className="h-4 w-4" />

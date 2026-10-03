@@ -5,7 +5,9 @@ import Icon, { ACCENT_CLASSES } from "@/components/Icon";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import AdSlot from "@/components/AdSlot";
-import { getAll } from "@/lib/store";
+import UsageCount from "@/components/UsageCount";
+import { getAll, getSettings } from "@/lib/store";
+import { DEFAULT_MIN_DISPLAY, getUsageTotals } from "@/lib/metrics";
 
 export async function generateStaticParams() {
   const sections = await getAll("sections");
@@ -32,11 +34,14 @@ export default async function SectionPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [sections, tools, links] = await Promise.all([
+  const [sections, tools, links, usage, settings] = await Promise.all([
     getAll("sections"),
     getAll("tools"),
     getAll("links"),
+    getUsageTotals(),
+    getSettings(),
   ]);
+  const usageMin = settings.usageMinDisplay ?? DEFAULT_MIN_DISPLAY;
 
   const section = sections.find((item) => item.slug === slug && item.published);
   if (!section) notFound();
@@ -102,6 +107,12 @@ export default async function SectionPage({
                     <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
                       {tool.shortDescription}
                     </p>
+                    <UsageCount
+                      uses={usage[tool.id] ?? 0}
+                      min={usageMin}
+                      hidden={tool.showUsage === false}
+                      className="mt-2"
+                    />
                     <span className="mt-3 inline-flex items-center gap-1 text-sm font-extrabold text-brand-700">
                       ابدأ
                       <Icon name="arrow" className="h-4 w-4" />

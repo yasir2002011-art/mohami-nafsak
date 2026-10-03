@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@/lib/track";
 import Icon from "@/components/Icon";
 import Markdown from "@/components/Markdown";
 
@@ -79,14 +80,8 @@ export default function CustodyObjection({
     preferred.length > 0 &&
     (preferred !== "other" || preferredOther.trim().length > 0);
 
-  const track = (type: "result_satisfied" | "result_unsatisfied") => {
-    void fetch("/api/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, toolId: "tool-custody" }),
-      keepalive: true,
-    }).catch(() => {});
-  };
+  // عدّ مجمّع: نعم/لا فقط
+  const rate = (value: "yes" | "no") => track("tool_helpful", { tool: "tool-custody", value });
 
   /** إرسال بيانات هذا المحضون وحده إلى مسار التحليل */
   const analyzeCustodyObjection = async (id: string) => {
@@ -145,7 +140,7 @@ export default function CustodyObjection({
           type="button"
           onClick={() => {
             setSatisfied(true);
-            track("result_satisfied");
+            rate("yes");
           }}
           className={`inline-flex items-center gap-1.5 rounded-full border-2 px-5 py-1.5 text-sm font-bold transition ${
             satisfied === true
@@ -160,7 +155,7 @@ export default function CustodyObjection({
           type="button"
           onClick={() => {
             setSatisfied(false);
-            track("result_unsatisfied");
+            rate("no");
           }}
           className={`inline-flex items-center gap-1.5 rounded-full border-2 px-5 py-1.5 text-sm font-bold transition ${
             satisfied === false

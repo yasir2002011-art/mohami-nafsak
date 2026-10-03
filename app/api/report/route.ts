@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAll, saveAll } from "@/lib/store";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { recordMetric } from "@/lib/metrics";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 import type { ErrorReport } from "@/types";
 
 const KINDS: ErrorReport["kind"][] = [
@@ -13,7 +14,7 @@ const KINDS: ErrorReport["kind"][] = [
 
 /** بلاغ عن خطأ أو تحديث نظامي — يظهر في لوحة الإدارة للمراجعة */
 export async function POST(request: Request) {
-  const limit = await checkRateLimit(`report:${clientIp(request)}`, 6, 60);
+  const limit = await checkRateLimit(`report:${clientKey(request)}`, 6, 60);
   if (!limit.allowed) {
     return NextResponse.json({ ok: false, error: "محاولات كثيرة." }, { status: 429 });
   }
@@ -45,6 +46,10 @@ export async function POST(request: Request) {
     });
 
     await saveAll("error-reports", reports.slice(-2000));
+    // عدّ مجمّع بالفئة فقط — نص البلاغ يبقى في صفحة «البلاغات» ولا يدخل جدول العدّ
+    if (typeof body.toolId === "string") {
+      await recordMetric("tool_error_report", { tool: body.toolId, category: kind });
+    }
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });

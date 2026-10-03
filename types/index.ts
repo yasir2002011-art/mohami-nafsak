@@ -58,6 +58,8 @@ export interface Tool {
   published: boolean;
   /** السماح بظهور إعلانات Google داخل هذه الأداة — يُمنع في صفحات النتائج الحساسة */
   allowGoogleAds: boolean;
+  /** إظهار عدّاد الاستخدام العام على هذه الأداة (افتراضيًا: ظاهر) */
+  showUsage?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -427,5 +429,7 @@ export interface SiteSettings {
   googleAdsEnabled: boolean;
   /** حفظ إجابات المستخدم بعد ظهور النتيجة (افتراضيًا: مغلق) */
   storeUserAnswers: boolean;
+  /** أقل عدد استخدامات يظهر عنده العدّاد العام على الأداة (افتراضيًا: 20) */
+  usageMinDisplay?: number;
   updatedAt: string;
 }

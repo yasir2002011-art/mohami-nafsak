@@ -1,56 +1,24 @@
 import { NextResponse } from "next/server";
-import { track } from "@/lib/analytics";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
-import type { AnalyticsEventType } from "@/types";
+import { recordMetric } from "@/lib/metrics";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 
 /**
- * استقبال أحداث مجهولة الهوية.
+ * استقبال أحداث قياس السلوك من المتصفح.
  *
- * قائمة بيضاء صارمة للحقول: أي حقل غير مذكور هنا يُتجاهل،
- * فلا يمكن تسريب إجابة أو نص حر إلى ملف الإحصاءات عن طريق هذا المسار.
+ * لا يُحفظ من الطلب إلا زيادة عدّاد اليوم لحدث من القوائم المغلقة
+ * (lib/metrics-schema.ts). لا يُقرأ ولا يُحفظ أي كوكي أو معرّف أو عنوان IP أو
+ * نص حر؛ والحدث غير المطابق للقوائم يُرفض كله.
  */
-
-const ALLOWED_TYPES: AnalyticsEventType[] = [
-  "tool_view",
-  "tool_start",
-  "tool_question",
-  "tool_complete",
-  "tool_abandon",
-  "result_copy",
-  "result_satisfied",
-  "result_unsatisfied",
-  "lawyer_click",
-  "ad_impression",
-  "article_view",
-];
-
-const asId = (value: unknown): string | undefined =>
-  typeof value === "string" && value.length > 0 && value.length <= 100 ? value : undefined;
-
 export async function POST(request: Request) {
-  const limit = await checkRateLimit(`track:${clientIp(request)}`, 80, 60);
+  const limit = await checkRateLimit(`track:${clientKey(request)}`, 120, 60);
   if (!limit.allowed) {
     return NextResponse.json({ ok: false }, { status: 429 });
   }
 
   try {
     const body = await request.json();
-    const type = body?.type as AnalyticsEventType;
-
-    if (!ALLOWED_TYPES.includes(type)) {
-      return NextResponse.json({ ok: false }, { status: 400 });
-    }
-
-    await track(type, {
-      toolId: asId(body.toolId),
-      sectionId: asId(body.sectionId),
-      questionId: asId(body.questionId),
-      resultId: asId(body.resultId),
-      lawyerId: asId(body.lawyerId),
-      articleId: asId(body.articleId),
-    });
-
-    return NextResponse.json({ ok: true });
+    const ok = await recordMetric(body?.event, body?.props, "client");
+    return NextResponse.json({ ok }, { status: ok ? 200 : 400 });
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }

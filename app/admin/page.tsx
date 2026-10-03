@@ -125,7 +125,7 @@ export default async function AdminHome() {
             { href: "/admin/articles", label: "كتابة مقال", icon: "scroll" },
             { href: "/admin/ads", label: "إضافة إعلان", icon: "sparkle" },
             { href: "/admin/tools", label: "ربط أداة برابط رسمي", icon: "briefcase" },
-            { href: "/admin/analytics", label: "عرض الإحصاءات", icon: "chart" },
+            { href: "/admin/analytics", label: "عرض السلوك", icon: "chart" },
           ].map((item) => (
             <Link
               key={item.href}

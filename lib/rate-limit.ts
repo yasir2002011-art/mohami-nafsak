@@ -9,6 +9,8 @@
  *   UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
  */
 
+import crypto from "node:crypto";
+
 export interface RateLimitResult {
   allowed: boolean;
   retryAfterSec: number;
@@ -74,9 +76,26 @@ export async function checkRateLimit(
   }
 }
 
-/** استخراج عنوان الطلب من رؤوس الوكيل */
-export function clientIp(request: Request): string {
+/** استخراج عنوان الطلب من رؤوس الوكيل — للاستخدام الداخلي فقط */
+function clientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0]!.trim();
   return request.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
+/**
+ * مفتاح حدّ الطلبات: بصمة مشفّرة للعنوان لا العنوان نفسه.
+ *
+ * العنوان لا يُحفظ في أي مكان. ما يدخل مخزن الحدّ هو بصمة SHA-256 مقطوعة،
+ * مملّحة بسرّ الخادم وبتاريخ اليوم (فتتغيّر يوميًا ولا تُعكس)، وتنتهي بانتهاء
+ * نافذة الحدّ. ولا علاقة لها بجدول قياس السلوك.
+ */
+export function clientKey(request: Request): string {
+  const salt = process.env.ADMIN_SESSION_SECRET || "mn-rate-limit";
+  const day = new Date().toISOString().slice(0, 10);
+  return crypto
+    .createHash("sha256")
+    .update(`${salt}|${day}|${clientIp(request)}`)
+    .digest("hex")
+    .slice(0, 24);
 }

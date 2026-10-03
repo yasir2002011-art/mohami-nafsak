@@ -7,7 +7,10 @@ import SiteFooter from "@/components/SiteFooter";
 import AdSlot from "@/components/AdSlot";
 import EngineRunner from "@/components/EngineRunner";
 import CustodyChecker from "@/components/CustodyChecker";
-import { getAll, getEngine, getModuleConfig } from "@/lib/store";
+import ExternalToolLink from "@/components/ExternalToolLink";
+import UsageCount from "@/components/UsageCount";
+import { DEFAULT_MIN_DISPLAY, getUsageTotals } from "@/lib/metrics";
+import { getAll, getEngine, getModuleConfig, getSettings } from "@/lib/store";
 import type { Lawyer, LawyerAssignment } from "@/types";
 import type { CustodyRuleConfig } from "@/types/custody";
 
@@ -33,11 +36,13 @@ export default async function ToolPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [tools, sections, lawyers, assignments] = await Promise.all([
+  const [tools, sections, lawyers, assignments, usage, settings] = await Promise.all([
     getAll("tools"),
     getAll("sections"),
     getAll("lawyers"),
     getAll("lawyer-assignments"),
+    getUsageTotals(),
+    getSettings(),
   ]);
 
   const tool = tools.find((item) => item.slug === slug && item.published);
@@ -86,6 +91,12 @@ export default async function ToolPage({
             <div>
               <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">{tool.name}</h1>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">{tool.description}</p>
+              <UsageCount
+                uses={usage[tool.id] ?? 0}
+                min={settings.usageMinDisplay ?? DEFAULT_MIN_DISPLAY}
+                hidden={tool.showUsage === false}
+                className="mt-2"
+              />
             </div>
           </div>
         </div>
@@ -135,6 +146,7 @@ export default async function ToolPage({
 
         {tool.kind === "external" && (
           <ExternalTool
+            toolId={tool.id}
             name={tool.name}
             url={tool.externalUrl}
             provider={tool.externalProvider}
@@ -186,10 +198,12 @@ function matchLawyers(
 }
 
 function ExternalTool({
+  toolId,
   name,
   url,
   provider,
 }: {
+  toolId: string;
   name: string;
   url?: string;
   provider?: string;
@@ -216,15 +230,11 @@ function ExternalTool({
         هذه الخدمة تُقدَّم عبر موقع خارجي. سيفتح الرابط في نافذة جديدة، والمنصة ليست مسؤولة عن
         محتوى الموقع الخارجي أو نتائجه.
       </p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn-brand mt-6"
-      >
+      {/* النقرة تُحتسب استخدامًا واحدًا للأداة الخارجية (عدّ مجمّع، مرة لكل تبويب) */}
+      <ExternalToolLink toolId={toolId} href={url} className="btn-brand mt-6">
         فتح الخدمة الرسمية
         <Icon name="arrow" className="h-4 w-4 rotate-180" />
-      </a>
+      </ExternalToolLink>
     </div>
   );
 }

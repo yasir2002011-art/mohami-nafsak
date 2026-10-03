@@ -509,3 +509,38 @@ export async function saveSettingsAction(form: FormData) {
   revalidatePath("/admin/settings");
   revalidatePath("/");
 }
+
+/* --------------------------- عدّاد الاستخدام العام --------------------------- */
+
+/**
+ * إظهار/إخفاء العدّاد لكل أداة، والحد الأدنى لظهوره.
+ * لا يوجد هنا ولا في أي مكان آخر حقل يُدخل رقم استخدامات: العدّ فعلي دائمًا.
+ */
+export async function saveUsageDisplayAction(form: FormData) {
+  await guard();
+
+  const ids = text(form, "toolIds").split(",").filter(Boolean);
+  const tools = await getAll("tools");
+  for (const tool of tools) {
+    if (ids.includes(tool.id)) tool.showUsage = bool(form, `show:${tool.id}`);
+  }
+  await saveAll("tools", tools);
+
+  const raw = Number(text(form, "usageMinDisplay"));
+  const usageMinDisplay = Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), 1_000_000) : 20;
+  const settings = await getSettings();
+  await saveSettings({ ...settings, usageMinDisplay, updatedAt: new Date().toISOString() });
+
+  await logAudit({
+    actor: "owner",
+    action: "update",
+    entity: "settings",
+    entityId: "usage-display",
+    summary: `تحديث إعدادات عدّاد الاستخدام (الحد الأدنى للإظهار: ${usageMinDisplay})`,
+  });
+
+  revalidatePath("/admin/analytics");
+  revalidatePath("/");
+  revalidatePath("/tools/[slug]", "page");
+  revalidatePath("/sections/[slug]", "page");
+}

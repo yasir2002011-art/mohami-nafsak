@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import type { Lawyer } from "@/types";
+import { track } from "@/lib/track";
 
 /**
  * التواصل مع محامٍ.
@@ -66,6 +67,11 @@ function LawyerCard({
 }) {
   const [step, setStep] = useState<"idle" | "consent" | "done">("idle");
   const [shareSummary, setShareSummary] = useState(false);
+
+  // ظهور بطاقة المحامي — عدّ مجمّع بمعرّف المحامي فقط
+  useEffect(() => {
+    track("lawyer_view", { lawyer_id: lawyer.id });
+  }, [lawyer.id]);
 
   const proceed = async () => {
     // تُسجَّل الإحالة: من أي أداة ونتيجة، وأي محامٍ، ومتى — بلا تفاصيل قضية

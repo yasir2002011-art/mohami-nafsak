@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAll, saveAll } from "@/lib/store";
-import { track } from "@/lib/analytics";
-import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { recordMetric } from "@/lib/metrics";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 import type { Referral } from "@/types";
 
 /**
@@ -14,7 +14,7 @@ import type { Referral } from "@/types";
  * المنصة لا تنقل ملخص القضية، والمستخدم هو من يكتبه بنفسه في محادثته.
  */
 export async function POST(request: Request) {
-  const limit = await checkRateLimit(`referral:${clientIp(request)}`, 10, 60);
+  const limit = await checkRateLimit(`referral:${clientKey(request)}`, 10, 60);
   if (!limit.allowed) {
     return NextResponse.json({ ok: false, error: "محاولات كثيرة." }, { status: 429 });
   }
@@ -48,12 +48,8 @@ export async function POST(request: Request) {
     referrals.push(referral);
     await saveAll("referrals", referrals);
 
-    await track("lawyer_click", {
-      lawyerId,
-      toolId: referral.toolId,
-      resultId: referral.resultId,
-    });
-    await track("referral_created", { lawyerId, toolId: referral.toolId });
+    // عدّ مجمّع فقط: نقرة تواصل مع هذا المحامي اليوم
+    await recordMetric("lawyer_contact_click", { lawyer_id: lawyerId });
 
     return NextResponse.json({ ok: true });
   } catch {

@@ -18,7 +18,7 @@ const NAV = [
   { href: "/admin/ads", label: "الإعلانات", icon: "sparkle" },
   { href: "/admin/referrals", label: "الإحالات", icon: "arrow" },
   { href: "/admin/reports", label: "البلاغات", icon: "alert" },
-  { href: "/admin/analytics", label: "الإحصاءات", icon: "chart" },
+  { href: "/admin/analytics", label: "السلوك", icon: "chart" },
   { href: "/admin/settings", label: "الإعدادات", icon: "lock" },
 ];
 
@@ -36,7 +36,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      <aside className="border-l border-slate-200 bg-white/80 backdrop-blur lg:w-64 lg:shrink-0">
+      <aside className="border-l border-slate-200 bg-white/80 backdrop-blur lg:w-64 lg:shrink-0 no-print">
         <div className="flex items-center gap-2.5 border-b border-slate-200 p-5">
           <span className="brand-gradient flex h-9 w-9 items-center justify-center rounded-xl text-white">
             <Icon name="scale" className="h-4 w-4" />

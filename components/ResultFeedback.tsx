@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Icon from "@/components/Icon";
+import { track } from "@/lib/track";
 
 /**
  * تقييم رضا المستخدم عن النتيجة.
  *
  * بعد ظهور النتيجة يُسأل: هل أنت راضٍ عنها؟
- *  - نعم  → يُسجَّل حدث مجهول (result_satisfied) فقط، دون أي بيانات.
+ *  - نعم  → يزيد عدّاد مجمّع (tool_helpful: yes) فقط، دون أي بيانات.
  *  - لا   → تظهر خانة «علّل» ثم يُرسل التعليل كبلاغ يظهر في لوحة الإدارة
  *           (نوعه unsatisfied-result) لمراجعته وتحسين شجرة القرار.
  *
@@ -26,22 +27,16 @@ export default function ResultFeedback({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const track = (type: "result_satisfied" | "result_unsatisfied") => {
-    void fetch("/api/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, toolId }),
-      keepalive: true,
-    }).catch(() => {});
-  };
+  // عدّ مجمّع: نعم/لا فقط
+  const rate = (value: "yes" | "no") => track("tool_helpful", { tool: toolId, value });
 
   const onYes = () => {
-    track("result_satisfied");
+    rate("yes");
     setStage("done-yes");
   };
 
   const onNo = () => {
-    track("result_unsatisfied");
+    rate("no");
     setStage("explain");
   };
 

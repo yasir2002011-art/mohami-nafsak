@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAll, saveAll } from "@/lib/store";
-import { track } from "@/lib/analytics";
+import { recordMetric } from "@/lib/metrics";
 
 /** تسجيل نقرة إعلان ثم التحويل إلى وجهته */
 export async function GET(
@@ -22,7 +22,7 @@ export async function GET(
 
   ad.clicks += 1;
   await saveAll("ads", ads);
-  await track("ad_click", { adId: ad.id, toolId: ad.toolId, sectionId: ad.sectionId });
+  await recordMetric("ad_click", { ad: ad.id });
 
   return NextResponse.redirect(ad.targetUrl);
 }

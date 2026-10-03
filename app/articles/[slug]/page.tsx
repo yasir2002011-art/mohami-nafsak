@@ -5,6 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import AdSlot from "@/components/AdSlot";
 import Markdown from "@/components/Markdown";
+import ArticleTelemetry from "@/components/ArticleTelemetry";
 import { getAll } from "@/lib/store";
 
 export async function generateStaticParams() {
@@ -29,11 +30,15 @@ export default async function ArticlePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const articles = await getAll("articles");
+  const [articles, tools] = await Promise.all([getAll("articles"), getAll("tools")]);
   const article = articles.find(
     (item) => item.slug === slug && item.status === "published",
   );
   if (!article) notFound();
+
+  const toolIdBySlug = Object.fromEntries(
+    tools.filter((tool) => tool.published).map((tool) => [tool.slug, tool.id]),
+  );
 
   return (
     <>
@@ -58,9 +63,10 @@ export default async function ArticlePage({
 
         <AdSlot placement="article-inline" />
 
-        <div className="card-soft mt-8 p-6 sm:p-9">
+        <div className="card-soft mt-8 p-6 sm:p-9" data-article-body>
           <Markdown source={article.body} />
         </div>
+        <ArticleTelemetry article={article.slug} toolIdBySlug={toolIdBySlug} />
 
         <p className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/70 p-5 text-sm leading-relaxed text-amber-900">
           هذا المقال معلومات عامة ولا يُعد استشارة قانونية ولا ينشئ علاقة موكِّل بمحامٍ.

@@ -30,6 +30,7 @@ import type {
   Tri,
 } from "@/types/custody";
 import type { Lawyer } from "@/types";
+import { track, trackToolComplete, trackToolStart, trackToolStep } from "@/lib/track";
 
 const STEPS = [
   "البداية",
@@ -105,15 +106,6 @@ export default function CustodyChecker({
     marriageEnded === "yes" || (marriageEnded === "no" && sameHome === "no");
   const maritalDecided = jointCustody || orderApplies;
 
-  const ping = (type: string) => {
-    void fetch("/api/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, toolId }),
-      keepalive: true,
-    }).catch(() => {});
-  };
-
   const result = useMemo(
     () => (step === 6 ? runCustodyChecker(items, states, config, jointCustody) : null),
     [step, items, states, config, jointCustody],
@@ -125,11 +117,13 @@ export default function CustodyChecker({
   const present = config.order.filter((entry) => states[entry.key].exists);
 
   const goNext = () => {
-    if (step === 0) ping("tool_start");
-    if (step === 5) ping("tool_complete");
+    if (step === 0) trackToolStart(toolId);
     // أسرة قائمة (زوجية + مسكن واحد): لا معنى لأسئلة الترتيب — ننتقل إلى النتيجة
-    const next = step === 2 && jointCustody ? 6 : step + 1;
-    setStep(Math.min(next, 6));
+    const next = Math.min(step === 2 && jointCustody ? 6 : step + 1, 6);
+    // القمع: رقم الخطوة فقط — لا يُرسل أي اختيار من اختيارات المستخدم
+    if (next === 6) trackToolComplete(toolId);
+    else trackToolStep(toolId, next);
+    setStep(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -911,11 +905,7 @@ function ResultView({
     lines.push("المصدر: منصة محامي نفسك.");
 
     void navigator.clipboard.writeText(lines.join("\n"));
-    void fetch("/api/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "result_copy", toolId }),
-    }).catch(() => {});
+    track("tool_download", { tool: toolId });
   };
 
   return (
@@ -1110,7 +1100,14 @@ function ResultView({
         <button type="button" onClick={copyResult} className="btn-brand">
           نسخ النتيجة
         </button>
-        <button type="button" onClick={() => window.print()} className="btn-ghost">
+        <button
+          type="button"
+          onClick={() => {
+            track("tool_download", { tool: toolId });
+            window.print();
+          }}
+          className="btn-ghost"
+        >
           طباعة
         </button>
         <button type="button" onClick={onRestart} className="btn-ghost">

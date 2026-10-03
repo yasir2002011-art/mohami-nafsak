@@ -38,7 +38,7 @@ import type {
  * /data/modules) يبقى في الملفات ويُدار عبر النشر — لا يتغيّر هنا.
  */
 
-const DATA_DIR = path.join(process.cwd(), "data");
+export const DATA_DIR = path.join(process.cwd(), "data");
 
 /** رابط قاعدة البيانات السحابية — يقبل عدة أسماء شائعة على Vercel/Neon */
 const DATABASE_URL =
@@ -92,14 +92,15 @@ type CollectionName = keyof Collections;
  */
 
 // نوع دالة الاستعلام من مشغّل Neon، بلا استيراد ثابت حتى لا يُحمَّل بلا داعٍ
-type SqlClient = (
+export type SqlClient = (
   strings: TemplateStringsArray,
   ...values: unknown[]
 ) => Promise<Record<string, unknown>[]>;
 
 let sqlClientPromise: Promise<SqlClient> | null = null;
 
-async function getSql(): Promise<SqlClient> {
+/** اتصال القاعدة السحابية — يُستخدم هنا وفي lib/metrics.ts (جدول العدّ المجمّع) */
+export async function getSql(): Promise<SqlClient> {
   if (!sqlClientPromise) {
     sqlClientPromise = (async () => {
       const { neon } = await import("@neondatabase/serverless");
@@ -317,6 +318,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
   videosEnabled: false,
   googleAdsEnabled: false,
   storeUserAnswers: false,
+  usageMinDisplay: 20,
   updatedAt: new Date(0).toISOString(),
 };
 
