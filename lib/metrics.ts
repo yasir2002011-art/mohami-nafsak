@@ -164,15 +164,27 @@ let lastPurgeDay = "";
 /**
  * يسجّل حدثًا: يتحقق منه مقابل القوائم المغلقة ثم يزيد عدّاد اليوم.
  * يعيد false إن رُفض الحدث. لا يرمي خطأ — القياس لا يعطّل الموقع أبدًا.
+ *
+ * useAllowed (اختياري): سقف العدّاد العام. يُسأل فقط عن الحدث الذي يُحتسب
+ * «استخدامًا»، وبعد التحقق من معرّف الأداة. إن رفض: البدء يُسجَّل بـ fresh = 0
+ * (يبقى في القمع ولا يدخل العدّاد العام)، ونقرة الأداة الخارجية تُهمل.
  */
 export async function recordMetric(
   event: unknown,
   rawProps: unknown,
   from: "client" | "server" = "server",
+  options: { useAllowed?: (tool: string) => Promise<boolean> } = {},
 ): Promise<boolean> {
   try {
     const clean = sanitizeMetric(event, rawProps, await metricContext(), from);
     if (!clean) return false;
+
+    if (options.useAllowed && isUse(clean.event, clean.props)) {
+      if (!(await options.useAllowed(clean.props.tool))) {
+        if (clean.event !== "tool_start") return true;
+        clean.props.fresh = "0";
+      }
+    }
 
     const today = riyadhDate();
     const row: MetricRow = {

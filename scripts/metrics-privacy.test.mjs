@@ -180,6 +180,50 @@ if (base) {
   const after = await countOf("tool_step", burstKey).catch(() => -1);
   check("العدّاد زاد 30 بالضبط تحت التزامن", after - before === 30, `قبل ${before} بعد ${after}`);
 
+  // سقف العدّاد العام: الاتصال الواحد لا يُحتسب له أكثر من 5 استخدامات للأداة في اليوم
+  const capIp = `cap-test-${Date.now()}`;
+  const sendFrom = (event, props) =>
+    fetch(`${base}/api/track`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": capIp },
+      body: JSON.stringify({ event, props }),
+    });
+  const freshKey = '{"fresh":"1","tool":"tool-contract-type"}';
+  const staleKey = '{"fresh":"0","tool":"tool-contract-type"}';
+  const extKey = '{"tool":"tool-inheritance"}';
+  const cap = {
+    fresh: await countOf("tool_start", freshKey).catch(() => 0),
+    stale: await countOf("tool_start", staleKey).catch(() => 0),
+    ext: await countOf("ext_tool_click", extKey).catch(() => 0),
+  };
+  for (let i = 0; i < 8; i += 1) {
+    const response = await sendFrom("tool_start", { tool: "tool-contract-type", fresh: "1" });
+    check("بدء فوق السقف يُقبل بلا خطأ", response.status === 200, `HTTP ${response.status}`);
+  }
+  for (let i = 0; i < 7; i += 1) await sendFrom("ext_tool_click", { tool: "tool-inheritance" });
+  check(
+    "8 استخدامات من اتصال واحد: يُحتسب 5 فقط في العدّاد العام",
+    (await countOf("tool_start", freshKey)) - cap.fresh === 5,
+  );
+  check(
+    "الثلاثة الزائدة تبقى في القمع بلا احتساب (fresh = 0)",
+    (await countOf("tool_start", staleKey)) - cap.stale === 3,
+  );
+  check(
+    "7 نقرات أداة خارجية من اتصال واحد: يُحتسب 5 فقط",
+    (await countOf("ext_tool_click", extKey)) - cap.ext === 5,
+  );
+  const other = await fetch(`${base}/api/track`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Forwarded-For": `${capIp}-b` },
+    body: JSON.stringify({ event: "tool_start", props: { tool: "tool-contract-type", fresh: "1" } }),
+  });
+  check("اتصال آخر لا يتأثر بسقف غيره", other.status === 200);
+  check(
+    "استخدام الاتصال الآخر يُحتسب",
+    (await countOf("tool_start", freshKey)) - cap.fresh === 6,
+  );
+
   // فحص المخزن الفعلي (ملف العدّ المحلي) صفًّا صفًّا
   const storePath = path.join(root, "data", "metrics.json");
   const raw = (await readFile(storePath, "utf-8")).replace(/^﻿/, "");
