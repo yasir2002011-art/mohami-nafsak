@@ -51,7 +51,9 @@ const note = (ok, label, detail = "") => {
 
 const latin = (text) => text.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
 
+const only = process.argv[3] ? new RegExp(process.argv[3]) : null;
 for (const [name, questions, expect] of cases) {
+  if (only && !only.test(name)) continue;
   // الرسائل: السؤال الأول ثم (لو متابعة) جوابه ثم السؤال الثاني
   const messages = [];
   let last = null;
