@@ -33,7 +33,9 @@ export type ToolKind =
   /** أداة تحوّل المستخدم إلى موقع/خدمة رسمية خارجية */
   | "external"
   /** صفحة أسئلة وأجوبة */
-  | "faq";
+  | "faq"
+  /** مساعد صوتي يجيب من مكتبة نصوص نظامية (المحامي الأسري الصوتي) — components/FamilyVoiceLawyer */
+  | "assistant";
 
 export interface Tool {
   id: string;

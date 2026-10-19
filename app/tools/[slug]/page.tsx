@@ -7,6 +7,7 @@ import SiteFooter from "@/components/SiteFooter";
 import AdSlot from "@/components/AdSlot";
 import EngineRunner from "@/components/EngineRunner";
 import CustodyChecker from "@/components/CustodyChecker";
+import FamilyVoiceLawyer from "@/components/FamilyVoiceLawyer";
 import ExternalToolLink from "@/components/ExternalToolLink";
 import UsageCount from "@/components/UsageCount";
 import { DEFAULT_MIN_DISPLAY, getUsageTotals } from "@/lib/metrics";
@@ -152,6 +153,8 @@ export default async function ToolPage({
             provider={tool.externalProvider}
           />
         )}
+
+        {tool.kind === "assistant" && <FamilyVoiceLawyer toolId={tool.id} lawyers={matchedLawyers} />}
 
         {tool.kind === "faq" && (
           <FaqTool items={tool.faq ?? []} />

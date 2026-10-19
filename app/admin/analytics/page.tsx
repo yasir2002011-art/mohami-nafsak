@@ -114,12 +114,12 @@ export default async function AdminBehaviorPage({
   const rows = all.filter((metric) => metric.date >= from && metric.date <= to);
   const toolName = (id: string) => tools.find((tool) => tool.id === id)?.name ?? id;
   const liveTools = tools.filter((tool) => tool.published);
-  const internalTools = liveTools.filter((tool) => tool.kind === "engine" || tool.kind === "module");
+  const internalTools = liveTools.filter((tool) => tool.kind === "engine" || tool.kind === "module" || tool.kind === "assistant");
 
   // الرقمان الكبيران: إتمامات الكاشف الأسري، ونقرات التواصل مع المحامين
   const familySection = sections.find((section) => section.slug === "family");
   const familyTools = new Set(
-    internalTools.filter((tool) => tool.sectionId === familySection?.id).map((tool) => tool.id),
+    internalTools.filter((tool) => tool.sectionId === familySection?.id && tool.kind !== "assistant").map((tool) => tool.id),
   );
   const familyCompletions = (since: string) =>
     sumOf(all, "tool_complete", (props, date) => date >= since && date <= today && familyTools.has(props.tool));

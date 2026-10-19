@@ -8,6 +8,7 @@ const KIND_LABELS: Record<string, string> = {
   engine: "محرك قرار",
   external: "خدمة خارجية",
   faq: "أسئلة وأجوبة",
+  assistant: "مساعد صوتي",
 };
 
 export default async function AdminToolsPage() {
