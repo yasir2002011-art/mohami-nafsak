@@ -138,6 +138,23 @@ function encodeWav(chunks: Float32Array[], inputRate: number): Blob {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
+/**
+ * أفضل صوت عربي على الجهاز (مجاني): أصوات Microsoft «الطبيعية» في متصفح Edge
+ * (مثل حامد السعودي) قريبة جدًا من الإنسان، ثم صوت Google في Chrome، ثم أي عربي.
+ */
+function bestDeviceVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+  const arabic = voices.filter((v) => v.lang.toLowerCase().startsWith("ar"));
+  const gulf = /^ar-(sa|ae|kw|qa|bh|om)$/i;
+  const natural = (v: SpeechSynthesisVoice) => /natural|online|neural/i.test(v.name);
+  const score = (v: SpeechSynthesisVoice) =>
+    (natural(v) ? 8 : 0) +
+    (gulf.test(v.lang) ? 4 : 0) +
+    (/google/i.test(v.name) ? 2 : 0) +
+    // صوت رجل للمحامي (حامد)، ويبقى أي صوت طبيعي مقبولًا
+    (/hamed|fahed|hamdan|moaz|abdullah|naayf|majed/i.test(v.name) ? 1 : 0);
+  return arabic.sort((a, b) => score(b) - score(a))[0];
+}
+
 /* ---------------------------------- التشغيل ---------------------------------- */
 
 class Player {
@@ -429,7 +446,7 @@ export class VoiceCall {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "ar-SA";
       utterance.rate = 0.95;
-      const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith("ar"));
+      const voice = bestDeviceVoice(synth.getVoices());
       if (voice) utterance.voice = voice;
       let finished = false;
       const finish = () => {
