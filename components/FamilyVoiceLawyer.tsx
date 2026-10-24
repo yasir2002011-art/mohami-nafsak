@@ -6,43 +6,31 @@ import LawyerContact from "@/components/LawyerContact";
 import { track } from "@/lib/track";
 import {
   INITIAL_STATE,
+  MAX_RECORD_SECONDS,
   MAX_SECONDS,
   VoiceCall,
-  voiceSupport,
   type CallLine,
-  type Phase,
+  type CallState,
+  type Gender,
 } from "@/lib/voice-call";
 import type { Lawyer } from "@/types";
 
 /**
- * المحامي الأسري الصوتي — تجربة مكالمة.
+ * المحامي الأسري الصوتي — تجربة مكالمة بدورٍ يملكه المتصل.
  *
- * الزائر يضغط «اتصال»، فيسمع رنينًا ثم ترحيبًا منطوقًا، ثم يتحاور بصوته بلا أي
- * ضغط أزرار حتى ينهي المكالمة. كل المنطق في lib/voice-call.ts؛ هذا المكوّن عرض فقط.
+ * زرّان كما طلب المالك: «تكلّم» يبدأ التسجيل (ويوقفه مؤقتًا ويكمله)، و«جاوبني»
+ * يأذن للمساعد بالرد. التردد والوقفات لا تُنهي كلام المتصل. يختار المتصل قبل
+ * الاتصال كيف يُخاطَب (رجل/امرأة) فتأتي كل العبارات بصيغته.
  *
- * المساعد آلي لا محامٍ، يجيب من نصوص رسمية بصياغة استرشادية، والمحادثة لا تُحفظ.
+ * كل المنطق في lib/voice-call.ts؛ هذا المكوّن عرض فقط.
  */
-
-const SERVER_SUPPORT = { recognition: true, synthesis: true };
-let cachedSupport: { recognition: boolean; synthesis: boolean } | null = null;
-const supportSnapshot = () => (cachedSupport ??= voiceSupport());
-const noopSubscribe = () => () => {};
 
 const TOPICS = ["الحضانة والزيارة", "النفقة", "الطلاق والخلع", "الزواج والولاية", "المواريث والوصية", "الإثبات ورفع الدعوى"];
 
-const STATUS: Record<Phase, string> = {
-  idle: "",
-  ringing: "جارٍ الاتصال…",
-  listening: "أستمع إليك…",
-  thinking: "أراجع الأنظمة…",
-  speaking: "المساعد يتحدث",
-  ended: "انتهت المكالمة",
-};
-
 const ENDED_NOTE: Record<string, string> = {
-  user: "أنهيت المكالمة.",
+  user: "انتهت المكالمة.",
   limit: "بلغت المكالمة حدّها الأقصى.",
-  idle: "أُنهيت المكالمة لعدم سماع صوت.",
+  idle: "أُنهيت المكالمة لعدم النشاط.",
   error: "تعذّر إكمال المكالمة.",
 };
 
@@ -50,6 +38,35 @@ function clock(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/** نص الحالة بصيغة المتصل */
+function statusText(state: CallState): string {
+  const f = state.gender === "f";
+  switch (state.phase) {
+    case "ringing":
+      return "جارٍ الاتصال…";
+    case "greeting":
+      return "المحامي الأسري يرحّب بك";
+    case "ready":
+      return f ? "دوركِ — اضغطي «تكلّمي» متى ما كنتِ جاهزة" : "دورك — اضغط «تكلّم» متى ما كنت جاهز";
+    case "recording":
+      return state.paused
+        ? f
+          ? "متوقف مؤقتًا — كمّلي أو اضغطي «جاوبني»"
+          : "متوقف مؤقتًا — كمّل أو اضغط «جاوبني»"
+        : f
+          ? "أسمعكِ… خذي راحتكِ"
+          : "أسمعك… خذ راحتك";
+    case "transcribing":
+      return f ? "فهمت عليكِ، لحظة…" : "فهمت عليك، لحظة…";
+    case "thinking":
+      return "يراجع الأنظمة…";
+    case "speaking":
+      return "المحامي الأسري يتكلم";
+    default:
+      return "";
+  }
 }
 
 function PhoneIcon({ className = "h-6 w-6", down = false }: { className?: string; down?: boolean }) {
@@ -70,22 +87,36 @@ function PhoneIcon({ className = "h-6 w-6", down = false }: { className?: string
   );
 }
 
-function MicIcon({ off = false, className = "h-6 w-6" }: { off?: boolean; className?: string }) {
+function MicIcon({ className = "h-7 w-7" }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
       <rect x="9" y="2" width="6" height="12" rx="3" />
       <path d="M5 11a7 7 0 0 0 14 0M12 18v4" />
-      {off && <path d="M3 3l18 18" />}
     </svg>
+  );
+}
+
+function SendIcon({ className = "h-7 w-7" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M4 12.5 9 17.5 20 6.5" />
+    </svg>
+  );
+}
+
+/** موجة بسيطة تتحرك مع مستوى الصوت أثناء التسجيل */
+function LevelBars({ level, active }: { level: number; active: boolean }) {
+  const shape = [0.45, 0.75, 1, 0.75, 0.45];
+  return (
+    <span className="flex h-8 items-center justify-center gap-1" aria-hidden="true">
+      {shape.map((factor, i) => (
+        <span
+          key={i}
+          className="w-1.5 rounded-full bg-gold-300 transition-[height] duration-100"
+          style={{ height: `${active ? Math.max(4, Math.round(32 * Math.min(1, level * factor + 0.08))) : 4}px` }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -98,25 +129,30 @@ export default function FamilyVoiceLawyer({
 }) {
   const [call] = useState(() => new VoiceCall(toolId));
   const state = useSyncExternalStore(call.subscribe, call.getSnapshot, () => INITIAL_STATE);
-  const support = useSyncExternalStore(noopSubscribe, supportSnapshot, () => SERVER_SUPPORT);
   const [agreed, setAgreed] = useState(false);
+  const [gender, setGender] = useState<Gender | null>(null);
   const [typed, setTyped] = useState("");
   const [rated, setRated] = useState<"" | "yes" | "no">("");
 
   useEffect(() => () => call.dispose(), [call]);
 
   const inCall = state.phase !== "idle" && state.phase !== "ended";
+  const f = state.gender === "f";
   const lastAnswer = [...state.lines].reverse().find((line) => line.role === "assistant");
+  const lastUser = [...state.lines].reverse().find((line) => line.role === "user");
+  const busy = state.phase === "transcribing" || state.phase === "thinking" || state.phase === "ringing";
+  const canAnswer = state.phase === "recording" && state.recordSeconds >= 1;
 
   const startCall = () => {
+    if (!gender) return;
     setRated("");
-    void call.start();
+    void call.start(gender);
   };
 
   const submitTyped = (event: React.FormEvent) => {
     event.preventDefault();
     if (!typed.trim()) return;
-    call.sendText(typed);
+    void call.sendText(typed);
     setTyped("");
   };
 
@@ -125,9 +161,25 @@ export default function FamilyVoiceLawyer({
     setRated(value);
   };
 
+  const talkLabel =
+    state.phase === "recording"
+      ? state.paused
+        ? f
+          ? "كمّلي كلامكِ"
+          : "كمّل كلامك"
+        : "إيقاف مؤقت"
+      : state.phase === "speaking" || state.phase === "greeting"
+        ? f
+          ? "قاطعيه وتكلّمي"
+          : "قاطعه وتكلّم"
+        : busy
+          ? "لحظة…"
+          : f
+            ? "تكلّمي"
+            : "تكلّم";
+
   return (
     <div className="space-y-6">
-      {/* التنبيه الدائم: آلي لا محامٍ */}
       <div className="card-soft disclaimer-note p-5">
         <p className="text-sm font-bold leading-relaxed text-slate-800">
           هذا مساعد آلي وليس محاميًا ولا قاضيًا. إجاباته استرشادية تُبنى على نصوص نظامية منشورة،
@@ -150,8 +202,8 @@ export default function FamilyVoiceLawyer({
             </p>
           ) : (
             <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
-              تحدّث بصوتك كأنها مكالمة، ويجيبك المساعد بصوته من نظام الأحوال الشخصية ولائحته
-              التنفيذية، ونظام الإثبات وأدلته الإجرائية، ونظام المرافعات الشرعية.
+              مكالمة بصوت بشري وبلهجة خليجية. تتكلم على راحتك ثم تضغط «جاوبني»، فيجيبك من نظام
+              الأحوال الشخصية ولائحته، ونظام الإثبات وأدلته الإجرائية، ونظام المرافعات الشرعية.
             </p>
           )}
 
@@ -165,6 +217,35 @@ export default function FamilyVoiceLawyer({
             </ul>
           )}
 
+          <fieldset className="mx-auto mt-6 max-w-xl">
+            <legend className="mx-auto text-sm font-extrabold text-slate-800">كيف يخاطبك المساعد؟</legend>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {(
+                [
+                  ["m", "أنا رجل"],
+                  ["f", "أنا امرأة"],
+                ] as const
+              ).map(([value, label]) => (
+                <label
+                  key={value}
+                  className={`cursor-pointer rounded-xl border-2 px-4 py-3 text-sm font-bold transition-colors ${
+                    gender === value ? "border-brand-900 bg-brand-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-brand-700"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="caller-gender"
+                    value={value}
+                    checked={gender === value}
+                    onChange={() => setGender(value)}
+                    className="sr-only"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
           <label className="mx-auto mt-6 flex max-w-xl cursor-pointer items-start gap-3 text-start text-sm leading-relaxed text-slate-700">
             <input
               type="checkbox"
@@ -173,27 +254,23 @@ export default function FamilyVoiceLawyer({
               className="mt-1 h-5 w-5 shrink-0 accent-[var(--ink)]"
             />
             <span>
-              أفهم أن المساعد آلي، وأن صوتي يُحوَّل إلى نص بواسطة متصفحي (وقد يعالجه مزوّد
-              المتصفح، مثل Google في Chrome)، وأن النص وحده يُرسل إلى خدمة الذكاء الاصطناعي
-              ليُجاب عنه، وأن المنصة لا تحفظ صوتي ولا نصي. وسأتجنّب ذكر أسماء أو أرقام هوية.
+              أفهم أن المساعد آلي، وأن تسجيل صوتي يُرسل بعد ضغط «جاوبني» إلى خدمة Google Gemini
+              لتحويله إلى نص ثم الإجابة عنه، وأن المنصة لا تحفظ صوتي ولا كلامي ولا المحادثة.
+              وسأتجنّب ذكر أسماء أو أرقام هوية.
             </span>
           </label>
 
           <button
             type="button"
             onClick={startCall}
-            disabled={!agreed}
+            disabled={!agreed || !gender}
             className="btn-brand mx-auto mt-6 inline-flex items-center gap-3 px-8 py-4 text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
             <PhoneIcon />
             {state.phase === "ended" ? "اتصال جديد" : "اتصل الآن"}
           </button>
-
-          {!support.recognition && (
-            <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-amber-800">
-              متصفحك الحالي لا يلتقط الصوت. جرّب Chrome أو Edge للمكالمة الصوتية، أو اتصل واكتب
-              أسئلتك وسيجيبك المساعد بصوته.
-            </p>
+          {(!agreed || !gender) && (
+            <p className="mt-2 text-xs text-slate-500">اختر طريقة المخاطبة ووافق على التنبيه لتفعيل الاتصال.</p>
           )}
 
           {state.phase === "ended" && (
@@ -220,22 +297,32 @@ export default function FamilyVoiceLawyer({
 
       {/* ------------------------------ أثناء المكالمة ------------------------------ */}
       {inCall && (
-        <section className="hero-ink rounded-2xl p-6 text-center text-white sm:p-8" aria-label="مكالمة جارية">
+        <section className="hero-ink rounded-2xl p-5 text-center text-white sm:p-8" aria-label="مكالمة جارية">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-bold text-white/60" dir="ltr">
+              {state.phase === "ringing" ? "" : clock(state.seconds)}
+            </span>
+            <button
+              type="button"
+              onClick={() => call.end("user")}
+              aria-label="إنهاء المكالمة"
+              className="flex items-center gap-2 rounded-full bg-rose-700 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-800"
+            >
+              <PhoneIcon down className="h-4 w-4" />
+              إنهاء
+            </button>
+          </div>
+
           <span
-            className={`mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-white/10 ring-4 ${
-              state.phase === "speaking" ? "ring-gold-300" : "ring-white/25"
+            className={`mx-auto mt-2 flex h-24 w-24 items-center justify-center rounded-full bg-white/10 ring-4 ${
+              state.phase === "speaking" || state.phase === "greeting" ? "ring-gold-300" : "ring-white/25"
             } ${state.phase === "ringing" ? "animate-pulse" : ""}`}
           >
-            <LogoMark className="h-16 w-auto" />
+            <LogoMark className="h-14 w-auto" />
           </span>
-          <h2 className="mt-4 text-lg font-extrabold">المحامي الأسري · محامي نفسك</h2>
+          <h2 className="mt-3 text-lg font-extrabold">المحامي الأسري · محامي نفسك</h2>
           <p className="mt-1 text-sm font-bold text-gold-200" aria-live="polite">
-            {state.muted && state.phase === "listening" ? "الميكروفون مكتوم" : STATUS[state.phase]}
-            {state.phase !== "ringing" && (
-              <span className="mx-2 text-white/60" dir="ltr">
-                {clock(state.seconds)}
-              </span>
-            )}
+            {statusText(state)}
           </p>
 
           {state.notice && (
@@ -244,57 +331,72 @@ export default function FamilyVoiceLawyer({
             </p>
           )}
 
-          {/* ما يُسمع/يُقال الآن */}
-          <div className="mx-auto mt-5 min-h-[7rem] max-w-2xl rounded-xl bg-white/10 p-4 text-start" aria-live="polite">
-            {state.phase === "listening" && state.caption ? (
-              <p className="text-base leading-relaxed text-white">{state.caption}</p>
-            ) : state.phase === "thinking" ? (
-              <p className="text-sm text-white/70">أراجع المواد النظامية المتعلقة بسؤالك…</p>
+          {/* آخر ما قيل */}
+          <div className="mx-auto mt-4 min-h-[6rem] max-w-2xl rounded-xl bg-white/10 p-4 text-start" aria-live="polite">
+            {state.phase === "recording" ? (
+              <div className="flex flex-col items-center gap-2 py-2">
+                <LevelBars level={state.level} active={!state.paused} />
+                <p className="text-sm text-white/80" dir="ltr">
+                  {clock(state.recordSeconds)} / {clock(MAX_RECORD_SECONDS)}
+                </p>
+              </div>
+            ) : state.phase === "transcribing" || state.phase === "thinking" ? (
+              <>
+                {lastUser && state.phase === "thinking" && (
+                  <p className="mb-2 text-xs text-white/60">
+                    {f ? "قلتِ" : "قلت"}: «{lastUser.text}»
+                  </p>
+                )}
+                <p className="text-sm text-white/80">{state.phase === "thinking" ? "يراجع المواد النظامية المتعلقة بسؤالك…" : "يستمع لتسجيلك…"}</p>
+              </>
             ) : lastAnswer ? (
               <p className="text-base leading-relaxed text-white">{lastAnswer.text}</p>
             ) : (
-              <p className="text-sm text-white/70">تفضّل بسؤالك بعد الترحيب…</p>
+              <p className="text-sm text-white/70">لحظات ويرد عليك…</p>
             )}
           </div>
 
-          {/* أزرار المكالمة */}
-          <div className="mt-6 flex items-center justify-center gap-4">
+          {/* الزرّان */}
+          <div className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={() => call.setMuted(!state.muted)}
-              aria-pressed={state.muted}
-              aria-label={state.muted ? "إلغاء كتم الميكروفون" : "كتم الميكروفون"}
-              disabled={state.phase === "ringing"}
-              className={`flex h-14 w-14 items-center justify-center rounded-full border border-white/30 transition-colors disabled:opacity-40 ${
-                state.muted ? "bg-white text-brand-900" : "bg-white/10 text-white hover:bg-white/20"
+              onClick={() => void call.talk()}
+              disabled={busy || !state.micAvailable}
+              aria-pressed={state.phase === "recording" && !state.paused}
+              className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 px-3 py-5 text-base font-extrabold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                state.phase === "recording" && !state.paused
+                  ? "border-gold-300 bg-gold-300 text-brand-900"
+                  : "border-white/30 bg-white/10 text-white hover:bg-white/20"
               }`}
             >
-              <MicIcon off={state.muted} />
+              <MicIcon />
+              {talkLabel}
             </button>
             <button
               type="button"
-              onClick={() => call.end("user")}
-              aria-label="إنهاء المكالمة"
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-700 text-white transition-colors hover:bg-rose-800"
+              onClick={() => void call.answer()}
+              disabled={!canAnswer}
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-white/30 bg-white px-3 py-5 text-base font-extrabold text-brand-900 transition-colors hover:bg-gold-50 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
             >
-              <PhoneIcon down className="h-7 w-7" />
+              <SendIcon />
+              جاوبني
             </button>
-            {state.phase === "speaking" && (
-              <button
-                type="button"
-                onClick={() => call.interrupt()}
-                className="rounded-full border border-white/30 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/20"
-              >
-                قاطعه وتحدّث
-              </button>
-            )}
           </div>
 
-          {state.seconds > MAX_SECONDS - 90 && (
-            <p className="mt-4 text-xs text-gold-200">تقترب المكالمة من حدّها الأقصى.</p>
+          {state.phase === "recording" ? (
+            <button type="button" onClick={() => call.discard()} className="mt-3 text-xs font-bold text-white/70 underline">
+              {f ? "امسحي التسجيل وابدئي من جديد" : "امسح التسجيل وابدأ من جديد"}
+            </button>
+          ) : (
+            <p className="mt-3 text-xs leading-relaxed text-white/60">
+              {f
+                ? "خذي راحتكِ في الكلام وتوقّفي متى ما بغيتِ؛ ما راح يرد إلا لما تضغطين «جاوبني»."
+                : "خذ راحتك في الكلام وتوقّف متى ما بغيت؛ ما راح يرد إلا لما تضغط «جاوبني»."}
+            </p>
           )}
 
-          {/* الكتابة: للضوضاء أو للمتصفحات بلا التقاط صوت */}
+          {state.seconds > MAX_SECONDS - 90 && <p className="mt-3 text-xs text-gold-200">تقترب المكالمة من حدّها الأقصى.</p>}
+
           <form onSubmit={submitTyped} className="mx-auto mt-6 flex max-w-xl gap-2">
             <label htmlFor="family-typed" className="sr-only">
               اكتب سؤالك
@@ -304,11 +406,11 @@ export default function FamilyVoiceLawyer({
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
               maxLength={700}
-              placeholder="أو اكتب سؤالك هنا"
-              disabled={state.phase === "ringing"}
+              placeholder={f ? "أو اكتبي سؤالكِ هنا" : "أو اكتب سؤالك هنا"}
+              disabled={busy}
               className="field flex-1 text-slate-900"
             />
-            <button type="submit" disabled={!typed.trim() || state.phase === "ringing"} className="btn-gold px-5 disabled:opacity-50">
+            <button type="submit" disabled={!typed.trim() || busy} className="btn-gold px-5 disabled:opacity-50">
               إرسال
             </button>
           </form>
@@ -322,7 +424,7 @@ export default function FamilyVoiceLawyer({
           <p className="mt-1 text-xs text-slate-500">يبقى هنا ما دمت في هذه الصفحة، ولا يُحفظ عندنا.</p>
           <ol className="mt-4 space-y-4">
             {state.lines.map((line) => (
-              <Line key={line.id} line={line} />
+              <Line key={line.id} line={line} female={f} />
             ))}
           </ol>
         </section>
@@ -335,7 +437,7 @@ export default function FamilyVoiceLawyer({
   );
 }
 
-function Line({ line }: { line: CallLine }) {
+function Line({ line, female }: { line: CallLine; female: boolean }) {
   const mine = line.role === "user";
   return (
     <li className={mine ? "flex justify-start" : "flex justify-end"}>
@@ -344,11 +446,9 @@ function Line({ line }: { line: CallLine }) {
           mine ? "bg-slate-100 text-slate-800" : line.failed ? "bg-amber-50 text-amber-900" : "bg-gold-50 text-slate-900"
         }`}
       >
-        <p className="mb-1 text-[11px] font-bold text-slate-500">{mine ? "أنت" : "المحامي الأسري (مساعد آلي)"}</p>
+        <p className="mb-1 text-[11px] font-bold text-slate-500">{mine ? (female ? "أنتِ" : "أنت") : "المحامي الأسري (مساعد آلي)"}</p>
         {line.safety && (
-          <p className="mb-2 rounded-lg border border-rose-300 bg-white px-3 py-2 font-bold text-rose-800">
-            {line.safety}
-          </p>
+          <p className="mb-2 rounded-lg border border-rose-300 bg-white px-3 py-2 font-bold text-rose-800">{line.safety}</p>
         )}
         <p>{line.text}</p>
         {line.sources && line.sources.length > 0 && (
@@ -364,12 +464,7 @@ function Line({ line }: { line: CallLine }) {
                     {source.section ? ` — ${source.section}` : ""}
                   </p>
                   <p className="mt-1 whitespace-pre-line">{source.text}</p>
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 inline-block font-bold text-gold-800 underline"
-                  >
+                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-bold text-gold-800 underline">
                     النص الرسمي في البوابة القانونية
                   </a>
                 </li>

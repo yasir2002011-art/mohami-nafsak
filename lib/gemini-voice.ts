@@ -112,6 +112,97 @@ export async function synthesize({ text, style, voice, model }: SpeakOptions): P
   return wav.subarray(0, 4).toString("ascii") === "RIFF" ? wav : pcmToWav(wav, 24_000);
 }
 
+/**
+ * نطق ببث: يعيد تيار PCM خامًا (16-bit، 24kHz، أحادي) يصل أولُه بعد نحو ثانية،
+ * فيبدأ المتصل بالسماع قبل اكتمال توليد الجواب كله.
+ *
+ * الخدمة ترسل أحداث SSE؛ نأخذ منها مقاطع الصوت (step.delta بنوع audio) فقط.
+ */
+export async function synthesizeStream({ text, style, voice, model }: SpeakOptions): Promise<ReadableStream<Uint8Array>> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45_000);
+  const response = await fetch(`${API}/interactions`, {
+    method: "POST",
+    signal: controller.signal,
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey() },
+    cache: "no-store",
+    body: JSON.stringify({
+      model: model || TTS_MODEL,
+      store: false,
+      stream: true,
+      input: [
+        {
+          type: "user_input",
+          content: [
+            {
+              type: "text",
+              text,
+              ...(style ? { annotations: [{ type: "speech_metadata", style }] } : {}),
+            },
+          ],
+        },
+      ],
+      response_format: { type: "audio" },
+      generation_config: { speech_config: [{ voice: voice || voiceId() }] },
+    }),
+  }).catch(() => null);
+
+  if (!response || !response.ok || !response.body) {
+    clearTimeout(timer);
+    const detail = response ? (await response.text().catch(() => "")).slice(0, 300) : "network";
+    throw new VoiceError(response?.status ?? 0, detail);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  return new ReadableStream<Uint8Array>({
+    async pull(stream) {
+      for (;;) {
+        // حدث كامل في الذاكرة؟ نعالجه أولًا
+        const boundary = buffer.indexOf("\n\n");
+        if (boundary >= 0) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const payload = block
+            .split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim())
+            .join("");
+          if (!payload) continue;
+          try {
+            const event = JSON.parse(payload) as { delta?: { type?: string; data?: string }; error?: unknown };
+            if (event.error) {
+              stream.error(new VoiceError(502, "stream-error"));
+              clearTimeout(timer);
+              return;
+            }
+            if (event.delta?.type === "audio" && event.delta.data) {
+              stream.enqueue(new Uint8Array(Buffer.from(event.delta.data, "base64")));
+              return;
+            }
+          } catch {
+            // سطر غير مكتمل أو غير JSON — نتجاهله
+          }
+          continue;
+        }
+        const { done, value } = await reader.read();
+        if (done) {
+          clearTimeout(timer);
+          stream.close();
+          return;
+        }
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+      }
+    },
+    cancel() {
+      clearTimeout(timer);
+      controller.abort();
+    },
+  });
+}
+
 /** لو جاء الصوت PCM خامًا بلا ترويسة نلفّه بترويسة WAV */
 export function pcmToWav(pcm: Buffer, sampleRate: number): Buffer {
   const header = Buffer.alloc(44);

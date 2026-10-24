@@ -1,21 +1,33 @@
 /**
- * محرّك المكالمة الصوتية في المتصفح (للمحامي الأسري الصوتي).
+ * محرّك مكالمة المحامي الأسري في المتصفح.
  *
- * يجعل التجربة مكالمة: رنين، ترحيب منطوق، ثم حوار متواصل بلا ضغط أزرار
- * (استماع ← تفكير ← نطق ← استماع…) حتى ينهي المتصل المكالمة.
+ * الدور بيد المتصل (طلب المالك): يضغط «تكلّم» فيُسجَّل كلامه مهما تردّد أو
+ * توقّف، ولا يرد المساعد إلا حين يضغط «جاوبني». الضغط على «تكلّم» أثناء
+ * التسجيل يوقفه مؤقتًا ثم يكمل.
  *
- * الصوت لا يصل إلى خادم المنصة أبدًا: تحويل الكلام إلى نص ونطق الجواب كلاهما
- * بواجهات المتصفح (Web Speech). ما يصل إلى الخادم هو النص فقط، ليُجاب عنه
- * بمواد نظامية (app/api/family-lawyer). لا يُحفظ شيء، والمحادثة تعيش في ذاكرة
- * الصفحة وتزول بإغلاقها.
+ * المسار: تسجيل (WAV 16kHz) ← transcribe/ (نص) ← family-lawyer/ (جواب موقّع)
+ *         ← voice/ (صوت بشري خليجي يُبث ويبدأ بعد نحو ثانية).
+ * أثناء الانتظار تُسمع عبارة قصيرة مخزّنة («عطني لحظة أراجع لك النظام»).
+ * إن تعذّر الصوت البشري يُقرأ الجواب بصوت الجهاز احتياطًا.
  *
- * الحالة في كائن واحد غير قابل للتعديل يُستبدل عند كل تغيّر، فتقرؤه الواجهة
- * عبر useSyncExternalStore دون أي تأثيرات جانبية في المكوّن.
+ * لا يُحفظ شيء: التسجيل يُرسل للتفريغ ثم يُنسى، والمحادثة في ذاكرة الصفحة فقط.
  */
 
 import { trackToolComplete, trackToolStart, trackToolStep } from "@/lib/track";
+import { FILLERS, phraseId, phraseText, VOICE_VERSION, type Gender, type PhraseName } from "@/lib/voice-phrases";
 
-export type Phase = "idle" | "ringing" | "listening" | "thinking" | "speaking" | "ended";
+export type { Gender };
+
+export type Phase =
+  | "idle"
+  | "ringing"
+  | "greeting"
+  | "ready"
+  | "recording"
+  | "transcribing"
+  | "thinking"
+  | "speaking"
+  | "ended";
 
 export interface CallSource {
   id: string;
@@ -30,7 +42,6 @@ export interface CallLine {
   role: "user" | "assistant";
   text: string;
   sources?: CallSource[];
-  /** تنبيه طوارئ ظهر مع هذا الجواب */
   safety?: string;
   failed?: boolean;
 }
@@ -38,109 +49,242 @@ export interface CallLine {
 export interface CallState {
   phase: Phase;
   lines: CallLine[];
-  /** ما يسمعه المساعد الآن من المتصل (نص مؤقت) */
-  caption: string;
   seconds: number;
-  muted: boolean;
-  /** ملاحظة للمتصل (لا يوجد صوت عربي، تعذّر الميكروفون…) */
+  /** مدة التسجيل الحالي بالثواني */
+  recordSeconds: number;
+  /** مستوى الصوت أثناء التسجيل (0–1) لمؤشر الموجة */
+  level: number;
+  paused: boolean;
+  micAvailable: boolean;
   notice: string | null;
   endedBy: "" | "user" | "limit" | "idle" | "error";
   turns: number;
+  gender: Gender;
 }
 
-export const MAX_TURNS = 20;
-export const MAX_SECONDS = 12 * 60;
+export const MAX_TURNS = 25;
+export const MAX_SECONDS = 20 * 60;
+export const MAX_RECORD_SECONDS = 100;
+const IDLE_SECONDS = 5 * 60;
+const TARGET_RATE = 16_000;
 
 export const INITIAL_STATE: CallState = {
   phase: "idle",
   lines: [],
-  caption: "",
   seconds: 0,
-  muted: false,
+  recordSeconds: 0,
+  level: 0,
+  paused: false,
+  micAvailable: true,
   notice: null,
   endedBy: "",
   turns: 0,
+  gender: "m",
 };
 
-const GREETING =
-  "مرحبًا بك في محامي نفسك. أنا مساعد آلي ولست محاميًا، وإجاباتي استرشادية من نظام الأحوال الشخصية ولائحته التنفيذية، ونظام الإثبات وأدلته الإجرائية، ونظام المرافعات الشرعية، والقرار النهائي للمحكمة. تفضّل، كيف أساعدك؟";
-const STILL_THERE = "هل ما زلت معي؟ تفضّل بسؤالك.";
-const IDLE_END = "لم أسمع شيئًا، سأنهي المكالمة الآن. يمكنك الاتصال مجددًا في أي وقت.";
-const LIMIT_END =
-  "انتهت مدة المكالمة. شكرًا لاستخدامك محامي نفسك. وللمسائل المهمة نوصيك بالتواصل مع محامٍ مرخّص.";
-const TURNS_END =
-  "وصلنا إلى الحد الأقصى من الأسئلة في هذه المكالمة. شكرًا لك، ويمكنك الاتصال مجددًا. وللمسائل المهمة نوصيك بمحامٍ مرخّص.";
-const FAIL_TEXT = "تعذّر الحصول على الجواب الآن. هل تعيد سؤالك؟";
+/* --------------------------------- التسجيل --------------------------------- */
 
-/* ------------------------------- أنواع المتصفح ------------------------------- */
+/** يحوّل عيّنات Float32 بمعدل الجهاز إلى WAV أحادي 16kHz/16-bit */
+function encodeWav(chunks: Float32Array[], inputRate: number): Blob {
+  const total = chunks.reduce((sum, c) => sum + c.length, 0);
+  const ratio = inputRate / TARGET_RATE;
+  const outLength = Math.floor(total / ratio);
+  const pcm = new Int16Array(outLength);
 
-interface RecognitionEventLike {
-  resultIndex: number;
-  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
-}
-interface RecognitionLike {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onresult: ((event: RecognitionEventLike) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-  abort(): void;
-}
-type RecognitionCtor = new () => RecognitionLike;
-
-function recognitionCtor(): RecognitionCtor | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as {
-    SpeechRecognition?: RecognitionCtor;
-    webkitSpeechRecognition?: RecognitionCtor;
+  // متوسط النوافذ (تخفيض بسيط يكفي للكلام)
+  let chunkIndex = 0;
+  let offset = 0;
+  const readSample = (): number => {
+    while (chunkIndex < chunks.length && offset >= chunks[chunkIndex].length) {
+      chunkIndex += 1;
+      offset = 0;
+    }
+    if (chunkIndex >= chunks.length) return 0;
+    const value = chunks[chunkIndex][offset];
+    offset += 1;
+    return value;
   };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-export function voiceSupport(): { recognition: boolean; synthesis: boolean } {
-  return {
-    recognition: recognitionCtor() !== null,
-    synthesis: typeof window !== "undefined" && "speechSynthesis" in window,
-  };
-}
-
-/** جمل قصيرة: Chrome يقطع النطق الطويل المتصل، وبالجمل يسهل التحكم والمقاطعة */
-function splitSentences(text: string): string[] {
-  const parts = text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.؟?!،؛:])\s+/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  const chunks: string[] = [];
-  for (const part of parts) {
-    if (part.length <= 170) chunks.push(part);
-    else for (let i = 0; i < part.length; i += 170) chunks.push(part.slice(i, i + 170));
+  let consumed = 0;
+  for (let i = 0; i < outLength; i += 1) {
+    const until = Math.floor((i + 1) * ratio);
+    let sum = 0;
+    let count = 0;
+    while (consumed < until) {
+      sum += readSample();
+      count += 1;
+      consumed += 1;
+    }
+    const sample = Math.max(-1, Math.min(1, count ? sum / count : 0));
+    pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
   }
-  return chunks;
+
+  const buffer = new ArrayBuffer(44 + pcm.length * 2);
+  const view = new DataView(buffer);
+  const write = (at: number, text: string) => [...text].forEach((ch, i) => view.setUint8(at + i, ch.charCodeAt(0)));
+  write(0, "RIFF");
+  view.setUint32(4, 36 + pcm.length * 2, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, TARGET_RATE, true);
+  view.setUint32(28, TARGET_RATE * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buffer, 44).set(pcm);
+  return new Blob([buffer], { type: "audio/wav" });
 }
 
-/* --------------------------------- المحرّك --------------------------------- */
+/* ---------------------------------- التشغيل ---------------------------------- */
+
+class Player {
+  private sources = new Set<AudioBufferSourceNode>();
+  private nextTime = 0;
+  private epoch = 0;
+  private abort: AbortController | null = null;
+
+  constructor(private readonly ctx: AudioContext) {}
+
+  stop() {
+    this.epoch += 1;
+    this.abort?.abort();
+    this.abort = null;
+    for (const source of this.sources) {
+      try {
+        source.stop();
+      } catch {
+        // انتهى
+      }
+    }
+    this.sources.clear();
+    this.nextTime = 0;
+  }
+
+  private schedule(buffer: AudioBuffer): Promise<void> {
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.ctx.destination);
+    const at = Math.max(this.ctx.currentTime + 0.04, this.nextTime);
+    source.start(at);
+    this.nextTime = at + buffer.duration;
+    this.sources.add(source);
+    return new Promise((resolve) => {
+      source.onended = () => {
+        this.sources.delete(source);
+        resolve();
+      };
+    });
+  }
+
+  /** يعيد true إن اكتمل التشغيل دون مقاطعة */
+  async playBuffer(buffer: AudioBuffer): Promise<boolean> {
+    const epoch = this.epoch;
+    await this.ctx.resume().catch(() => {});
+    await this.schedule(buffer);
+    return epoch === this.epoch;
+  }
+
+  /** يشغّل تيار PCM خامًا (16-bit، 24kHz) أثناء وصوله */
+  async playStream(url: string, body: unknown): Promise<"done" | "stopped" | "failed"> {
+    const epoch = this.epoch;
+    this.abort = new AbortController();
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: this.abort.signal,
+      });
+    } catch {
+      return epoch === this.epoch ? "failed" : "stopped";
+    }
+    if (!response.ok || !response.body) return "failed";
+    await this.ctx.resume().catch(() => {});
+
+    const reader = response.body.getReader();
+    const tail: { bytes: Uint8Array | null } = { bytes: null };
+    let last: Promise<void> = Promise.resolve();
+    let played = 0;
+    // نجمع نحو 0.25 ثانية قبل الجدولة حتى لا تتقطّع المقاطع الصغيرة
+    let pending: Uint8Array[] = [];
+    let pendingBytes = 0;
+    const flush = () => {
+      if (pendingBytes < 2) return;
+      const joined = new Uint8Array(pendingBytes);
+      let at = 0;
+      for (const part of pending) {
+        joined.set(part, at);
+        at += part.length;
+      }
+      pending = [];
+      pendingBytes = 0;
+      const usable = joined.length - (joined.length % 2);
+      if (usable < joined.length) tail.bytes = joined.slice(usable);
+      const samples = new Int16Array(joined.buffer, 0, usable / 2);
+      const buffer = this.ctx.createBuffer(1, samples.length, 24_000);
+      const channel = buffer.getChannelData(0);
+      for (let i = 0; i < samples.length; i += 1) channel[i] = samples[i] / 0x8000;
+      played += samples.length;
+      last = this.schedule(buffer);
+    };
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (epoch !== this.epoch) return "stopped";
+        if (done) break;
+        let chunk = value;
+        if (tail.bytes) {
+          const merged = new Uint8Array(tail.bytes.length + chunk.length);
+          merged.set(tail.bytes);
+          merged.set(chunk, tail.bytes.length);
+          chunk = merged;
+          tail.bytes = null;
+        }
+        pending.push(chunk);
+        pendingBytes += chunk.length;
+        if (pendingBytes >= 12_000) flush();
+      }
+      flush();
+    } catch {
+      if (epoch !== this.epoch) return "stopped";
+      if (played === 0) return "failed";
+    }
+    if (played === 0) return "failed";
+    await last;
+    return epoch === this.epoch ? "done" : "stopped";
+  }
+}
+
+/* ---------------------------------- المحرّك ---------------------------------- */
 
 export class VoiceCall {
   private state: CallState = INITIAL_STATE;
   private listeners = new Set<() => void>();
-
   private lineId = 0;
   private active = false;
-  /** يُزاد عند كل إيقاف ليتجاهل ما تأخر من نداءات الاستماع والنطق */
   private epoch = 0;
-  private recognition: RecognitionLike | null = null;
+
+  private ctx: AudioContext | null = null;
+  private player: Player | null = null;
+  private phrases = new Map<string, AudioBuffer>();
   private timer: ReturnType<typeof setInterval> | null = null;
-  private silentRounds = 0;
-  private failures = 0;
-  private audio: AudioContext | null = null;
-  private arabicVoice: SpeechSynthesisVoice | null = null;
-  private canSpeak = false;
+  private idleSince = 0;
   private abort: AbortController | null = null;
+
+  // التسجيل
+  private stream: MediaStream | null = null;
+  private source: MediaStreamAudioSourceNode | null = null;
+  private processor: ScriptProcessorNode | null = null;
+  private chunks: Float32Array[] = [];
+  private samples = 0;
+  private energy = 0;
+  private capturing = false;
+  private lastLevelAt = 0;
 
   constructor(private readonly toolId: string) {}
 
@@ -161,204 +305,315 @@ export class VoiceCall {
     this.set({ lines: [...this.state.lines, { ...line, id: this.lineId }] });
   }
 
-  /* ------------------------------- بدء المكالمة ------------------------------- */
+  /** قراءة المرحلة بعد انتظار (تتغير أثناءه، فلا يصح تضييق النوع) */
+  private phaseIs(phase: Phase): boolean {
+    return this.state.phase === phase;
+  }
 
-  async start(): Promise<void> {
+  private setPhase(phase: Phase) {
+    if (phase === "ready") this.idleSince = this.state.seconds;
+    this.set({ phase });
+  }
+
+  /* -------------------------------- بدء المكالمة -------------------------------- */
+
+  async start(gender: Gender): Promise<void> {
     if (this.active) return;
     this.active = true;
     this.epoch += 1;
     const epoch = this.epoch;
-    this.silentRounds = 0;
-    this.failures = 0;
     this.lineId = 0;
-    this.set({ ...INITIAL_STATE, phase: "ringing" });
+    const micAvailable = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+    this.set({
+      ...INITIAL_STATE,
+      phase: "ringing",
+      gender,
+      micAvailable,
+      notice: micAvailable ? null : "متصفحك لا يسمح بالتسجيل الصوتي؛ اكتب سؤالك وسيجيبك المساعد بصوته.",
+    });
     trackToolStart(this.toolId);
 
-    const support = voiceSupport();
-    let notice: string | null = null;
-
-    // الصوت العربي: إن وُجدت أصوات على الجهاز وليس بينها عربي فلا نقرأ الجواب بصوت أجنبي
-    this.canSpeak = support.synthesis;
-    if (support.synthesis) {
-      const voices = window.speechSynthesis.getVoices();
-      this.arabicVoice =
-        voices.find((v) => v.lang.toLowerCase() === "ar-sa") ??
-        voices.find((v) => v.lang.toLowerCase().startsWith("ar")) ??
-        null;
-      if (voices.length > 0 && !this.arabicVoice) {
-        this.canSpeak = false;
-        notice = "لا يتوفر صوت عربي على جهازك، فستظهر الإجابات مكتوبة. ثبّت صوتًا عربيًا من إعدادات النظام لتُنطق.";
-      }
-    } else {
-      notice = "متصفحك لا يدعم نطق الإجابات، فستظهر مكتوبة.";
+    // سياق الصوت يُنشأ داخل ضغطة «اتصل» حتى تسمح المتصفحات بالتشغيل (iPhone خصوصًا)
+    try {
+      const Ctx =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      this.ctx = new Ctx();
+      this.player = new Player(this.ctx);
+    } catch {
+      this.ctx = null;
+      this.player = null;
     }
 
-    if (support.recognition) {
-      // طلب إذن الميكروفون أثناء الرنين حتى لا يقاطع النافذة أول كلام
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      } catch {
-        this.fail("لم يُسمح بالوصول إلى الميكروفون. اسمح به من إعدادات الموقع ثم اتصل مجددًا، أو اكتب سؤالك.", epoch);
-        return;
-      }
-    } else {
-      notice =
-        "متصفحك لا يلتقط الصوت (جرّب Chrome أو Edge). اكتب سؤالك في الخانة وسيجيبك المساعد." +
-        (notice ? ` ${notice}` : "");
-    }
-    if (epoch !== this.epoch) return;
-    this.set({ notice });
-
-    await this.ring(epoch);
+    // نحمّل العبارات الثابتة أثناء الرنين
+    const preload = Promise.all(
+      (["greeting", "didntHear", "error", ...FILLERS] as PhraseName[]).map((name) => this.loadPhrase(name)),
+    );
+    await Promise.all([this.ring(), preload]);
     if (epoch !== this.epoch) return;
 
-    this.timer = setInterval(() => {
-      const seconds = this.state.seconds + 1;
-      this.set({ seconds });
-      if (seconds >= MAX_SECONDS) this.closeWith(LIMIT_END, "limit");
-    }, 1000);
-
-    this.addLine({ role: "assistant", text: GREETING });
-    this.speak(GREETING, () => this.listen());
+    this.timer = setInterval(() => this.tick(), 1000);
+    this.addLine({ role: "assistant", text: phraseText(phraseId("greeting", gender)) });
+    this.setPhase("greeting");
+    await this.sayPhrase("greeting");
+    if (epoch === this.epoch && this.state.phase === "greeting") this.setPhase("ready");
   }
 
-  private fail(message: string, epoch: number) {
-    if (epoch !== this.epoch) return;
-    this.cleanup();
-    this.addLine({ role: "assistant", text: message, failed: true });
-    this.set({ phase: "ended", endedBy: "error" });
+  private tick() {
+    const seconds = this.state.seconds + 1;
+    this.set({ seconds });
+    if (seconds >= MAX_SECONDS) void this.closeWith("timeLimit", "limit");
+    else if (this.state.phase === "ready" && seconds - this.idleSince >= IDLE_SECONDS) void this.closeWith("idle", "idle");
   }
 
-  /** نغمة رنين بسيطة بلا ملفات صوت: نغمتان قصيرتان مرتين */
-  private ring(epoch: number): Promise<void> {
-    return new Promise((resolve) => {
+  private ring(): Promise<void> {
+    const ctx = this.ctx;
+    if (ctx) {
       try {
-        const Ctx =
-          window.AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (Ctx) {
-          this.audio = new Ctx();
-          const ctx = this.audio;
-          const gain = ctx.createGain();
-          gain.gain.value = 0.06;
-          gain.connect(ctx.destination);
-          for (const offset of [0, 0.55, 1.6, 2.15]) {
-            const osc = ctx.createOscillator();
-            osc.frequency.value = 425;
-            osc.connect(gain);
-            osc.start(ctx.currentTime + offset);
-            osc.stop(ctx.currentTime + offset + 0.4);
-          }
+        const gain = ctx.createGain();
+        gain.gain.value = 0.06;
+        gain.connect(ctx.destination);
+        for (const offset of [0, 0.55, 1.6, 2.15]) {
+          const osc = ctx.createOscillator();
+          osc.frequency.value = 425;
+          osc.connect(gain);
+          osc.start(ctx.currentTime + offset);
+          osc.stop(ctx.currentTime + offset + 0.4);
         }
       } catch {
-        // بلا رنين — نكمل
+        // بلا رنين
       }
-      setTimeout(() => {
-        if (epoch === this.epoch) void this.audio?.close().catch(() => {});
-        resolve();
-      }, 2700);
+    }
+    return new Promise((resolve) => setTimeout(resolve, 2700));
+  }
+
+  private async loadPhrase(name: PhraseName): Promise<void> {
+    if (!this.ctx) return;
+    const id = phraseId(name, this.state.gender);
+    if (this.phrases.has(id)) return;
+    try {
+      const response = await fetch(`/api/family-lawyer/voice?phrase=${encodeURIComponent(id)}&v=${VOICE_VERSION}`);
+      if (!response.ok) return;
+      const buffer = await this.ctx.decodeAudioData(await response.arrayBuffer());
+      this.phrases.set(id, buffer);
+    } catch {
+      // تُقرأ بصوت الجهاز احتياطًا
+    }
+  }
+
+  /** ينطق عبارة ثابتة؛ يعيد true إن اكتملت دون مقاطعة */
+  private async sayPhrase(name: PhraseName): Promise<boolean> {
+    const id = phraseId(name, this.state.gender);
+    const buffer = this.phrases.get(id);
+    if (buffer && this.player) return this.player.playBuffer(buffer);
+    return this.deviceSpeak(phraseText(id));
+  }
+
+  /** صوت الجهاز احتياطًا (أقل طبيعية) */
+  private deviceSpeak(text: string): Promise<boolean> {
+    const epoch = this.epoch;
+    return new Promise((resolve) => {
+      if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+        setTimeout(() => resolve(epoch === this.epoch), Math.min(8000, 1200 + text.length * 30));
+        return;
+      }
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "ar-SA";
+      utterance.rate = 0.95;
+      const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith("ar"));
+      if (voice) utterance.voice = voice;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(watchdog);
+        resolve(epoch === this.epoch);
+      };
+      const watchdog = setTimeout(finish, 2500 + text.length * 85);
+      utterance.onend = finish;
+      utterance.onerror = finish;
+      synth.speak(utterance);
     });
   }
 
-  /* --------------------------------- الاستماع --------------------------------- */
+  private stopSpeaking() {
+    this.player?.stop();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+  }
 
-  private listen() {
-    if (!this.active) return;
-    this.stopRecognition();
-    this.set({ phase: "listening", caption: "" });
-    if (this.state.muted) return;
+  /* ------------------------------ زر «تكلّم» ------------------------------ */
 
-    const Ctor = recognitionCtor();
-    if (!Ctor) return; // الكتابة وحدها
+  /** بدء الكلام، أو إيقافه مؤقتًا/إكماله، أو مقاطعة المساعد ليتكلم المتصل */
+  async talk(): Promise<void> {
+    if (!this.active || !this.state.micAvailable) return;
+    const { phase, paused } = this.state;
+    if (phase === "recording") {
+      this.capturing = paused;
+      this.set({ paused: !paused, level: 0 });
+      return;
+    }
+    if (phase === "speaking" || phase === "greeting") {
+      this.epoch += 1;
+      this.stopSpeaking();
+    } else if (phase !== "ready") {
+      return;
+    }
+    await this.startRecording();
+  }
+
+  private async startRecording() {
+    if (!this.ctx) return;
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      });
+    } catch {
+      this.set({
+        micAvailable: false,
+        notice: "ما قدرنا نوصل للميكروفون. اسمح به من إعدادات المتصفح، أو اكتب سؤالك تحت.",
+      });
+      this.setPhase("ready");
+      return;
+    }
+    if (!this.active) {
+      this.releaseMic();
+      return;
+    }
+    await this.ctx.resume().catch(() => {});
+    this.chunks = [];
+    this.samples = 0;
+    this.energy = 0;
+    this.capturing = true;
+    this.source = this.ctx.createMediaStreamSource(this.stream);
+    this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
+    const rate = this.ctx.sampleRate;
+    this.processor.onaudioprocess = (event) => {
+      if (!this.capturing) return;
+      const data = event.inputBuffer.getChannelData(0);
+      this.chunks.push(new Float32Array(data));
+      this.samples += data.length;
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 1) sum += data[i] * data[i];
+      this.energy += sum;
+      const now = performance.now();
+      if (now - this.lastLevelAt > 90) {
+        this.lastLevelAt = now;
+        const rms = Math.sqrt(sum / data.length);
+        const recordSeconds = Math.floor(this.samples / rate);
+        this.set({ level: Math.min(1, rms * 6), recordSeconds });
+        if (recordSeconds >= MAX_RECORD_SECONDS) {
+          this.capturing = false;
+          this.set({ paused: true, level: 0, notice: "وصلت أقصى مدة للتسجيل، اضغط «جاوبني»." });
+        }
+      }
+    };
+    this.source.connect(this.processor);
+    this.processor.connect(this.ctx.destination);
+    this.set({ phase: "recording", paused: false, recordSeconds: 0, level: 0, notice: null });
+  }
+
+  private releaseMic() {
+    this.capturing = false;
+    try {
+      this.source?.disconnect();
+      this.processor?.disconnect();
+    } catch {
+      // مفصول
+    }
+    if (this.processor) this.processor.onaudioprocess = null;
+    this.source = null;
+    this.processor = null;
+    this.stream?.getTracks().forEach((track) => track.stop());
+    this.stream = null;
+  }
+
+  /** إلغاء التسجيل الحالي دون إرسال */
+  discard() {
+    if (this.state.phase !== "recording") return;
+    this.releaseMic();
+    this.chunks = [];
+    this.set({ paused: false, level: 0, recordSeconds: 0 });
+    this.setPhase("ready");
+  }
+
+  /* ------------------------------ زر «جاوبني» ------------------------------ */
+
+  async answer(): Promise<void> {
+    if (!this.active || this.state.phase !== "recording" || !this.ctx) return;
+    const rate = this.ctx.sampleRate;
+    const seconds = this.samples / rate;
+    const rms = this.samples ? Math.sqrt(this.energy / this.samples) : 0;
+    this.releaseMic();
+    const chunks = this.chunks;
+    this.chunks = [];
+    this.set({ paused: false, level: 0 });
+
+    if (seconds < 0.6 || rms < 0.003) {
+      this.setPhase("speaking");
+      await this.sayPhrase("didntHear");
+      if (this.active && this.phaseIs("speaking")) this.setPhase("ready");
+      return;
+    }
 
     const epoch = this.epoch;
-    const rec = new Ctor();
-    rec.lang = "ar-SA";
-    rec.continuous = false;
-    rec.interimResults = true;
-    rec.maxAlternatives = 1;
+    this.setPhase("transcribing");
+    const filler = this.sayPhrase(FILLERS[Math.floor(Math.random() * FILLERS.length)]);
 
-    let finalText = "";
-    rec.onresult = (event) => {
-      if (epoch !== this.epoch) return;
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i];
-        if (result.isFinal) finalText += `${result[0].transcript} `;
-        else interim += result[0].transcript;
-      }
-      this.set({ caption: (finalText + interim).trim() });
-    };
-    rec.onerror = (event) => {
-      if (epoch !== this.epoch) return;
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        this.fail("تعذّر الوصول إلى الميكروفون. اسمح به ثم اتصل مجددًا، أو اكتب سؤالك.", epoch);
-      } else if (event.error === "network") {
-        this.set({ notice: "انقطع الاتصال بخدمة التعرف على الصوت. تحقق من الإنترنت أو اكتب سؤالك." });
-      }
-      // no-speech / aborted: يعالجها onend
-    };
-    rec.onend = () => {
-      if (epoch !== this.epoch || this.recognition !== rec) return;
-      this.recognition = null;
-      const text = finalText.trim();
-      if (text.length >= 2) {
-        this.silentRounds = 0;
-        void this.submit(text);
-        return;
-      }
-      this.silentRounds += 1;
-      if (this.silentRounds === 3) this.speak(STILL_THERE, () => this.listen());
-      else if (this.silentRounds >= 6) this.closeWith(IDLE_END, "idle");
-      else setTimeout(() => epoch === this.epoch && this.listen(), 150);
-    };
-
-    this.recognition = rec;
+    let text = "";
+    let failed = false;
     try {
-      rec.start();
+      const response = await fetch("/api/family-lawyer/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "audio/wav" },
+        body: encodeWav(chunks, rate),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; text?: string };
+      failed = !response.ok || !data.ok;
+      text = (data.text ?? "").trim();
     } catch {
-      // بدأ للتو — نتجاهل
+      failed = true;
     }
+    if (epoch !== this.epoch) return;
+
+    if (failed || !text) {
+      await filler;
+      if (epoch !== this.epoch) return;
+      this.setPhase("speaking");
+      await this.sayPhrase(failed ? "error" : "didntHear");
+      if (epoch === this.epoch) this.setPhase("ready");
+      return;
+    }
+    await this.ask(text, filler);
   }
 
-  private stopRecognition() {
-    const rec = this.recognition;
-    this.recognition = null;
-    if (!rec) return;
-    rec.onresult = null;
-    rec.onerror = null;
-    rec.onend = null;
-    try {
-      rec.abort();
-    } catch {
-      // انتهى
-    }
-  }
-
-  /* ---------------------------------- السؤال ---------------------------------- */
-
-  /** سؤال مكتوب (للمتصفحات بلا التقاط صوت، أو لمن يفضّل الكتابة) */
-  sendText(text: string) {
+  /** سؤال مكتوب (للضوضاء أو لمن لا يسمح متصفحه بالتسجيل) */
+  async sendText(text: string): Promise<void> {
     const clean = text.replace(/\s+/g, " ").trim();
     if (!this.active || clean.length < 2) return;
-    if (this.state.phase === "thinking" || this.state.phase === "ringing") return;
-    this.stopRecognition();
-    this.stopSpeech();
-    this.epoch += 1; // يُبطل ما تبقّى من نطق الجواب السابق
-    void this.submit(clean);
+    if (!["ready", "speaking", "greeting", "recording"].includes(this.state.phase)) return;
+    if (this.state.phase === "recording") {
+      this.releaseMic();
+      this.chunks = [];
+    }
+    this.epoch += 1;
+    this.stopSpeaking();
+    const filler = this.sayPhrase(FILLERS[Math.floor(Math.random() * FILLERS.length)]);
+    await this.ask(clean, filler);
   }
 
-  private async submit(text: string) {
+  private async ask(text: string, filler: Promise<boolean>) {
     const epoch = this.epoch;
     if (this.state.turns >= MAX_TURNS) {
-      this.closeWith(TURNS_END, "limit");
+      await filler;
+      await this.closeWith("turnLimit", "limit");
       return;
     }
     const turns = this.state.turns + 1;
-    trackToolStep(this.toolId, turns);
+    trackToolStep(this.toolId, Math.min(turns, 40));
     this.addLine({ role: "user", text });
-    this.set({ phase: "thinking", caption: "", turns });
+    this.set({ turns });
+    this.setPhase("thinking");
 
     const messages = this.state.lines
       .filter((line) => !line.failed)
@@ -366,142 +621,92 @@ export class VoiceCall {
       .map((line) => ({ role: line.role, text: line.text }));
 
     this.abort = new AbortController();
-    const timeout = setTimeout(() => this.abort?.abort(), 28_000);
+    const timeout = setTimeout(() => this.abort?.abort(), 30_000);
+    let data: {
+      ok?: boolean;
+      answer?: string;
+      sources?: CallSource[];
+      safety?: { text: string };
+      speech?: { text: string; sig: string; tone: string };
+      error?: string;
+    } = {};
+    let ok = false;
     try {
       const response = await fetch("/api/family-lawyer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, gender: this.state.gender }),
         signal: this.abort.signal,
       });
-      const data = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        answer?: string;
-        sources?: CallSource[];
-        safety?: { text: string; speech: string };
-        error?: string;
-      };
-      if (epoch !== this.epoch) return;
-
-      if (response.ok && data.ok && data.answer) {
-        this.failures = 0;
-        this.addLine({
-          role: "assistant",
-          text: data.answer,
-          sources: data.sources ?? [],
-          safety: data.safety?.text,
-        });
-        const spoken = (data.safety ? `${data.safety.speech} ` : "") + data.answer;
-        this.speak(spoken, () => this.listen());
-        return;
-      }
-      this.failures += 1;
-      const message = data.error || FAIL_TEXT;
-      this.addLine({ role: "assistant", text: message, failed: true });
-      if (this.failures >= 3) this.closeWith(message, "error", false);
-      else this.speak(message, () => this.listen());
+      data = await response.json().catch(() => ({}));
+      ok = response.ok && !!data.ok && !!data.answer;
     } catch {
-      if (epoch !== this.epoch) return;
-      this.failures += 1;
-      this.addLine({ role: "assistant", text: FAIL_TEXT, failed: true });
-      if (this.failures >= 3) this.closeWith(FAIL_TEXT, "error", false);
-      else this.speak(FAIL_TEXT, () => this.listen());
+      ok = false;
     } finally {
       clearTimeout(timeout);
     }
-  }
+    if (epoch !== this.epoch) return;
 
-  /* ----------------------------------- النطق ----------------------------------- */
+    // لا نقطع عبارة الانتظار في منتصفها
+    await filler;
+    if (epoch !== this.epoch) return;
 
-  private speak(text: string, done: () => void) {
-    if (!this.active) return;
-    this.stopRecognition();
-    this.set({ phase: "speaking", caption: "" });
-
-    if (!this.canSpeak) {
-      // بلا صوت: نمهل المتصل قليلًا ليقرأ ثم نعود للاستماع
-      const epoch = this.epoch;
-      const wait = Math.min(9000, 1500 + text.length * 35);
-      setTimeout(() => epoch === this.epoch && done(), this.state.muted ? 0 : wait);
+    if (!ok) {
+      this.addLine({ role: "assistant", text: data.error || phraseText(phraseId("error", this.state.gender)), failed: true });
+      this.setPhase("speaking");
+      await this.sayPhrase("error");
+      if (epoch === this.epoch) this.setPhase("ready");
       return;
     }
 
-    const synth = window.speechSynthesis;
-    synth.cancel();
-    const epoch = this.epoch;
-    const chunks = splitSentences(text);
-    let index = 0;
-
-    const next = () => {
-      if (epoch !== this.epoch) return;
-      if (index >= chunks.length) {
-        // لحظة قصيرة ليهدأ الصدى قبل أن يلتقط الميكروفون
-        setTimeout(() => epoch === this.epoch && done(), 350);
-        return;
-      }
-      const utterance = new SpeechSynthesisUtterance(chunks[index]);
-      index += 1;
-      utterance.lang = "ar-SA";
-      utterance.rate = 0.95;
-      if (this.arabicVoice) utterance.voice = this.arabicVoice;
-
-      let fired = false;
-      const advance = () => {
-        if (fired) return;
-        fired = true;
-        clearTimeout(watchdog);
-        next();
-      };
-      // بعض المتصفحات لا تُطلق onend أحيانًا؛ مؤقّت احتياطي بقدر طول الجملة
-      const watchdog = setTimeout(advance, 2000 + utterance.text.length * 85);
-      utterance.onend = advance;
-      utterance.onerror = (event) => {
-        if (event.error === "interrupted" || event.error === "canceled") return;
-        advance();
-      };
-      synth.speak(utterance);
-    };
-    next();
+    this.addLine({
+      role: "assistant",
+      text: data.answer!,
+      sources: data.sources ?? [],
+      safety: data.safety?.text,
+    });
+    this.setPhase("speaking");
+    let outcome: "done" | "stopped" | "failed" = "failed";
+    if (data.speech && this.player) {
+      outcome = await this.player.playStream("/api/family-lawyer/voice", data.speech);
+    }
+    if (outcome === "failed" && epoch === this.epoch) {
+      if (!this.state.notice) this.set({ notice: "تعذّر الصوت البشري مؤقتًا، فقرأنا الجواب بصوت جهازك." });
+      await this.deviceSpeak(data.speech?.text ?? data.answer!);
+    }
+    if (epoch === this.epoch && this.state.phase === "speaking") this.setPhase("ready");
   }
 
-  private stopSpeech() {
-    if (voiceSupport().synthesis) window.speechSynthesis.cancel();
-  }
-
-  /** المتصل يقاطع المساعد ليتكلم */
+  /** إيقاف كلام المساعد والعودة لدور المتصل */
   interrupt() {
-    if (!this.active || this.state.phase !== "speaking") return;
+    if (!this.active || (this.state.phase !== "speaking" && this.state.phase !== "greeting")) return;
     this.epoch += 1;
-    this.stopSpeech();
-    this.listen();
-  }
-
-  setMuted(muted: boolean) {
-    if (!this.active) return;
-    this.set({ muted });
-    if (muted) this.stopRecognition();
-    else if (this.state.phase === "listening") this.listen();
+    this.stopSpeaking();
+    this.setPhase("ready");
   }
 
   /* ------------------------------- إنهاء المكالمة ------------------------------- */
 
-  /** يقول جملة الختام ثم يغلق (حد المدة، حد الأسئلة، صمت طويل) */
-  private closeWith(message: string, by: CallState["endedBy"], speak = true) {
+  private async closeWith(name: PhraseName, by: CallState["endedBy"]) {
     if (!this.active) return;
-    this.stopRecognition();
+    this.epoch += 1;
+    this.releaseMic();
+    this.stopSpeaking();
+    this.abort?.abort();
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.addLine({ role: "assistant", text: message, failed: by === "error" });
-    const finish = () => this.end(by);
-    if (speak) this.speak(message, finish);
-    else this.end(by);
+    this.addLine({ role: "assistant", text: phraseText(phraseId(name, this.state.gender)) });
+    this.setPhase("speaking");
+    await this.loadPhrase(name);
+    await this.sayPhrase(name);
+    this.end(by);
   }
 
   end(by: CallState["endedBy"] = "user") {
     if (!this.active) return;
     this.cleanup();
     trackToolComplete(this.toolId);
-    this.set({ phase: "ended", caption: "", endedBy: by });
+    this.set({ phase: "ended", endedBy: by, level: 0, paused: false });
   }
 
   private cleanup() {
@@ -509,15 +714,16 @@ export class VoiceCall {
     this.epoch += 1;
     this.abort?.abort();
     this.abort = null;
-    this.stopRecognition();
-    this.stopSpeech();
+    this.releaseMic();
+    this.stopSpeaking();
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    void this.audio?.close().catch(() => {});
-    this.audio = null;
+    void this.ctx?.close().catch(() => {});
+    this.ctx = null;
+    this.player = null;
+    this.phrases.clear();
   }
 
-  /** عند مغادرة الصفحة */
   dispose() {
     this.cleanup();
   }
