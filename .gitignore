@@ -13,3 +13,6 @@ next-env.d.ts
 
 # عدّ السلوك المحلي (على الإنتاج: جدول metrics_daily في القاعدة)
 data/metrics.json
+
+# عيّنات الأصوات (ملفات صوتية كبيرة للاختيار فقط)
+docs/voice-samples/

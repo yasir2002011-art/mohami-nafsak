@@ -54,6 +54,46 @@ export async function POST(request: Request) {
           headers: { "Content-Type": "audio/wav", "X-Elapsed-Ms": String(Date.now() - started) },
         });
       }
+      case "stream-probe": {
+        // يفحص شكل البث من الخدمة: نوع المحتوى وأول ما يصل وزمن أول بايت
+        const started = Date.now();
+        const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY ?? "" },
+          body: JSON.stringify({
+            model: body.model ? String(body.model) : "gemini-3.8-flash-tts",
+            store: false,
+            stream: true,
+            input: [{ type: "user_input", content: [{ type: "text", text: String(body.text) }] }],
+            response_format: { type: "audio" },
+            generation_config: { speech_config: [{ voice: String(body.voice) }] },
+          }),
+        });
+        const reader = upstream.body?.getReader();
+        const decoder = new TextDecoder();
+        let raw = "";
+        let firstByteMs = -1;
+        let total = 0;
+        if (reader) {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (firstByteMs < 0) firstByteMs = Date.now() - started;
+            total += value.length;
+            if (raw.length < 4000) raw += decoder.decode(value, { stream: true });
+          }
+        }
+        // نُخفي بيانات الصوت الطويلة ونُبقي البنية
+        const shape = raw.replace(/"data":\s*"[A-Za-z0-9+/=]{40,}"/g, '"data":"<b64>"').slice(0, 3000);
+        return NextResponse.json({
+          status: upstream.status,
+          contentType: upstream.headers.get("content-type"),
+          firstByteMs,
+          totalMs: Date.now() - started,
+          totalBytes: total,
+          shape,
+        });
+      }
       case "describe": {
         const wav = Buffer.from(String(body.audio), "base64");
         return NextResponse.json({ text: await describeAudio(wav, String(body.question)) });
