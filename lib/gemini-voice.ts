@@ -14,6 +14,16 @@
 const API = "https://generativelanguage.googleapis.com/v1beta";
 
 export const TTS_MODEL = process.env.FAMILY_TTS_MODEL || "gemini-3.8-flash-tts";
+/**
+ * نموذج احتياطي بحصة منفصلة: إن نفدت حصة الأساسي (429) أو تعطّل نُطق به.
+ * أسرع وأرخص وأقل تعبيرًا قليلًا، والصوت المصمَّم نفسه يعمل عليه.
+ */
+export const TTS_FALLBACK_MODEL = process.env.FAMILY_TTS_FALLBACK_MODEL || "gemini-3.8-flash-lite-tts";
+
+/** خطأ يستحق تجربة النموذج الاحتياطي (نفاد حصة أو عطل عابر) */
+function retryable(error: unknown): boolean {
+  return error instanceof VoiceError && (error.status === 429 || error.status >= 500 || error.status === 0);
+}
 /** صوت جاهز احتياطي إن لم يُضبط صوت مُصمَّم */
 export const FALLBACK_VOICE = "Sadaltager";
 export const STT_MODEL = process.env.GEMINI_STT_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -86,7 +96,16 @@ export interface SpeakOptions {
 }
 
 /** يعيد WAV (24kHz، أحادي، 16-bit) */
-export async function synthesize({ text, style, voice, model }: SpeakOptions): Promise<Buffer> {
+export async function synthesize(options: SpeakOptions): Promise<Buffer> {
+  try {
+    return await synthesizeOnce(options);
+  } catch (error) {
+    if (options.model || !retryable(error)) throw error;
+    return synthesizeOnce({ ...options, model: TTS_FALLBACK_MODEL });
+  }
+}
+
+async function synthesizeOnce({ text, style, voice, model }: SpeakOptions): Promise<Buffer> {
   const body = {
     model: model || TTS_MODEL,
     store: false,
@@ -118,7 +137,16 @@ export async function synthesize({ text, style, voice, model }: SpeakOptions): P
  *
  * الخدمة ترسل أحداث SSE؛ نأخذ منها مقاطع الصوت (step.delta بنوع audio) فقط.
  */
-export async function synthesizeStream({ text, style, voice, model }: SpeakOptions): Promise<ReadableStream<Uint8Array>> {
+export async function synthesizeStream(options: SpeakOptions): Promise<ReadableStream<Uint8Array>> {
+  try {
+    return await synthesizeStreamOnce(options);
+  } catch (error) {
+    if (options.model || !retryable(error)) throw error;
+    return synthesizeStreamOnce({ ...options, model: TTS_FALLBACK_MODEL });
+  }
+}
+
+async function synthesizeStreamOnce({ text, style, voice, model }: SpeakOptions): Promise<ReadableStream<Uint8Array>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 45_000);
   const response = await fetch(`${API}/interactions`, {

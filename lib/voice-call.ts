@@ -345,15 +345,16 @@ export class VoiceCall {
     }
 
     // نحمّل العبارات الثابتة أثناء الرنين
-    const preload = Promise.all(
-      (["greeting", "didntHear", "error", ...FILLERS] as PhraseName[]).map((name) => this.loadPhrase(name)),
-    );
-    await Promise.all([this.ring(), preload]);
+    // الترحيب أثناء الرنين، وبقية العبارات تُحمَّل بالتتابع بعده (مخزّنة غالبًا في الشبكة)
+    await Promise.all([this.ring(), this.loadPhrase("greeting")]);
     if (epoch !== this.epoch) return;
 
     this.timer = setInterval(() => this.tick(), 1000);
     this.addLine({ role: "assistant", text: phraseText(phraseId("greeting", gender)) });
     this.setPhase("greeting");
+    void (async () => {
+      for (const name of [...FILLERS, "didntHear", "error"] as PhraseName[]) await this.loadPhrase(name);
+    })();
     await this.sayPhrase("greeting");
     if (epoch === this.epoch && this.state.phase === "greeting") this.setPhase("ready");
   }
@@ -398,6 +399,13 @@ export class VoiceCall {
     } catch {
       // تُقرأ بصوت الجهاز احتياطًا
     }
+  }
+
+  /** عبارة انتظار قصيرة إن كانت جاهزة؛ وإلا صمت (صوت الجهاز هنا ينشز عن صوت المحادثة) */
+  private sayFiller(): Promise<boolean> {
+    const ready = FILLERS.filter((name) => this.phrases.has(phraseId(name, this.state.gender)));
+    if (ready.length === 0) return Promise.resolve(true);
+    return this.sayPhrase(ready[Math.floor(Math.random() * ready.length)]);
   }
 
   /** ينطق عبارة ثابتة؛ يعيد true إن اكتملت دون مقاطعة */
@@ -558,7 +566,7 @@ export class VoiceCall {
 
     const epoch = this.epoch;
     this.setPhase("transcribing");
-    const filler = this.sayPhrase(FILLERS[Math.floor(Math.random() * FILLERS.length)]);
+    const filler = this.sayFiller();
 
     let text = "";
     let failed = false;
@@ -598,7 +606,7 @@ export class VoiceCall {
     }
     this.epoch += 1;
     this.stopSpeaking();
-    const filler = this.sayPhrase(FILLERS[Math.floor(Math.random() * FILLERS.length)]);
+    const filler = this.sayFiller();
     await this.ask(clean, filler);
   }
 
