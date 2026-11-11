@@ -258,12 +258,12 @@ const STT_PROMPT = `هذا تسجيل لشخص يتكلم في مكالمة مع
 إن لم يكن في التسجيل كلام مفهوم فأعد نصًا فارغًا.
 الإخراج JSON بحقل واحد: text.`;
 
-export async function transcribe(wav: Buffer): Promise<string> {
+export async function transcribe(wav: Buffer, mimeType = "audio/wav"): Promise<string> {
   const body = {
     contents: [
       {
         role: "user",
-        parts: [{ inline_data: { mime_type: "audio/wav", data: wav.toString("base64") } }, { text: STT_PROMPT }],
+        parts: [{ inline_data: { mime_type: mimeType, data: wav.toString("base64") } }, { text: STT_PROMPT }],
       },
     ],
     generationConfig: {

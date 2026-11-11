@@ -16,3 +16,8 @@ data/metrics.json
 
 # عيّنات الأصوات (ملفات صوتية كبيرة للاختيار فقط)
 docs/voice-samples/
+
+# خدمة الصوت التجريبية
+voice-agent/.env.local
+voice-agent/.venv/
+voice-agent/__pycache__/

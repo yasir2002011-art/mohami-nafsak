@@ -38,6 +38,23 @@ const securityHeaders = [
     : []),
 ];
 
+/**
+ * الصفحة التجريبية المخفية (/experiment) وحدها تحتاج اتصالًا بخدمة المكالمات (LiveKit)
+ * والكاميرا للمعاينة المحلية؛ بقية الموقع تبقى على السياسة الأصلية دون تغيير.
+ */
+const experimentHeaders = securityHeaders.map((header) => {
+  if (header.key === "Content-Security-Policy") {
+    return {
+      key: header.key,
+      value: csp.replace("connect-src 'self'", "connect-src 'self' https://*.livekit.cloud wss://*.livekit.cloud"),
+    };
+  }
+  if (header.key === "Permissions-Policy") {
+    return { key: header.key, value: "camera=(self), microphone=(self), geolocation=(), payment=()" };
+  }
+  return header;
+});
+
 /** الدومين الرسمي — تُوحَّد عليه كل العناوين البديلة */
 const CANONICAL_HOST = "mohaminafsak.com";
 const ALTERNATE_HOSTS = ["www.mohaminafsak.com", "mohami-nafsak.vercel.app"];
@@ -76,7 +93,12 @@ const nextConfig: NextConfig = {
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
       {
-        source: "/:path*",
+        source: "/experiment/:path*",
+        headers: [...experimentHeaders, { key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
+        // كل المسارات عدا الصفحة التجريبية (ترويستا CSP معًا تتقاطعان فتُحجب الخدمة)
+        source: "/((?!experiment/).*)",
         headers: securityHeaders,
       },
     ];

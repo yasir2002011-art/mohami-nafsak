@@ -1,0 +1,7 @@
+{
+  "name": "mohami outbound (Twilio)",
+  "address": "REPLACE-WITH-YOUR-TRUNK.pstn.twilio.com",
+  "numbers": ["+1REPLACE_WITH_TWILIO_NUMBER"],
+  "auth_username": "REPLACE",
+  "auth_password": "REPLACE"
+}
