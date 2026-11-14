@@ -1,8 +1,8 @@
 """
 الوكيل الصوتي «المحامي الاصطناعي» — خدمة منفصلة عن الموقع (تجريبية).
 
-يرد على: المكالمة الهاتفية الواردة، «اتصلوا بي» (اتصال صادر لمن طلبه وتحقق من رقمه)،
-ومكالمة الفيديو داخل الموقع. محادثة حية بصوت طبيعي عبر Gemini Live مع مقاطعة فورية.
+يرد على مكالمات يبدؤها المستخدم فقط: هاتف وارد، مكالمة واتساب، ومكالمة الفيديو داخل الموقع.
+لا يتصل بأحد من تلقاء نفسه. محادثة حية بصوت طبيعي عبر Gemini Live مع مقاطعة فورية.
 
 القاعدة الأهم: الوكيل لا يجيب عن أي مسألة نظامية من عنده. كل سؤال نظامي أو إجرائي
 يذهب عبر الأداة ask_law إلى مسار الإجابة القائم في الموقع (/api/experiment/answer)،
@@ -35,7 +35,6 @@ SITE_URL = os.getenv("SITE_URL", "http://localhost:3001").rstrip("/")
 AGENT_SECRET = os.getenv("EXPERIMENT_AGENT_SECRET", "")
 LIVE_MODEL = os.getenv("GEMINI_LIVE_MODEL", "gemini-3.8-live")
 LIVE_VOICE = os.getenv("GEMINI_LIVE_VOICE", "Sadaltager")
-SIP_TRUNK_ID = os.getenv("LIVEKIT_SIP_TRUNK_ID", "")
 MAX_CALL_SECONDS = int(os.getenv("MAX_CALL_SECONDS", "900"))
 
 INSTRUCTIONS = """أنت «المحامي الاصطناعي»، المساعد الآلي لمنصة «محامي نفسك» السعودية، في مكالمة حية.
@@ -123,40 +122,13 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     await ctx.connect()
 
-    if mode == "callback":
-        # اتصال صادر: فقط لرقم طلبه صاحبه وتحقق منه برمز في الموقع (المسار callback/)
-        phone = str(meta.get("phone", ""))
-        if not (SIP_TRUNK_ID and phone.startswith("+9665") and len(phone) == 13 and phone[1:].isdigit()):
-            logger.info("call outcome=rejected-number mode=callback")
-            return
-        try:
-            await ctx.api.sip.create_sip_participant(
-                api.CreateSIPParticipantRequest(
-                    sip_trunk_id=SIP_TRUNK_ID,
-                    sip_call_to=phone,
-                    room_name=ctx.room.name,
-                    participant_identity="caller",
-                    participant_name="caller",
-                    krisp_enabled=True,
-                    wait_until_answered=True,
-                )
-            )
-        except Exception:
-            logger.info("call outcome=not-answered mode=callback")
-            return
-
     session = AgentSession(llm=google.realtime.RealtimeModel(model=LIVE_MODEL, voice=LIVE_VOICE, temperature=0.7))
     await session.start(room=ctx.room, agent=ArtificialLawyer())
 
-    reason = str(meta.get("reason", ""))[:40]
-    opening = "رحّب بالمتصل بجملة واحدة قصيرة: «هلا والله، معك المحامي الاصطناعي من منصة محامي نفسك»، ثم اسأله كيف تساعده."
-    if mode == "callback":
-        opening = (
-            "المتصل طلب هذا الاتصال من الموقع قبل لحظات"
-            + (f" بخصوص «{reason}»" if reason else "")
-            + ". قل: «هلا والله، معك المحامي الاصطناعي من منصة محامي نفسك، طلبت نتصل عليك»، ثم اسأله عن سؤاله."
-        )
-    await session.generate_reply(instructions=opening)
+    # المتصل هو من بدأ المكالمة دائمًا (هاتف، واتساب، أو الموقع)
+    await session.generate_reply(
+        instructions="رحّب بالمتصل بجملة واحدة قصيرة: «هلا والله، معك المحامي الاصطناعي من منصة محامي نفسك»، ثم اسأله كيف تساعده."
+    )
 
     async def hang_up_at_limit() -> None:
         await asyncio.sleep(MAX_CALL_SECONDS)

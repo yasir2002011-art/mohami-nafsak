@@ -2,7 +2,9 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 
 /**
- * الميزة التجريبية «المحامي الاصطناعي» (واتساب، هاتف، اتصلوا بي، فيديو).
+ * الميزة التجريبية «المحامي الاصطناعي» (واتساب كتابةً ومكالمةً، هاتف وارد، فيديو الموقع).
+ *
+ * المستخدم هو الذي يبدأ دائمًا: لا اتصال صادر من المنصة إطلاقًا، ولا مزوّد مدفوع.
  *
  * كل شيء هنا خلف مفتاح واحد: EXPERIMENT_VOICE=1. بدونه تعيد كل المسارات 404
  * والصفحة غير موجودة. الصفحة مخفية (noindex، بلا رابط) وخلف بوّابة بمفتاح
@@ -79,7 +81,7 @@ export function phoneHash(e164: string): string {
 
 /**
  * قائمة الأرقام المسموحة في مرحلة «المالك فقط» (EXPERIMENT_ALLOWED_NUMBERS، مفصولة
- * بفواصل). ما دامت مضبوطة فلا يُرَد على غيرها في واتساب ولا يُتصل بغيرها.
+ * بفواصل). لا يُرَد في واتساب (كتابةً أو مكالمةً) إلا عليها؛ وإن كانت فارغة فلا يُرَد على أحد.
  */
 export function numberAllowed(e164: string): boolean {
   const list = (process.env.EXPERIMENT_ALLOWED_NUMBERS ?? "")
@@ -87,42 +89,6 @@ export function numberAllowed(e164: string): boolean {
     .map((item) => normalizeSaudiMobile(item) ?? item.trim())
     .filter(Boolean);
   return list.length === 0 ? false : list.includes(e164);
-}
-
-/* ------------------------------- تخزين قصير الأجل ------------------------------- */
-
-const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const memory = new Map<string, { value: string; expiresAt: number }>();
-
-async function redis(command: string[]): Promise<unknown> {
-  const response = await fetch(`${UPSTASH_URL}/${command.map(encodeURIComponent).join("/")}`, {
-    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`upstash ${response.status}`);
-  return ((await response.json()) as { result?: unknown }).result;
-}
-
-/** قيمة مؤقتة (رمز تحقق مجزّأ مثلًا) تنتهي تلقائيًا */
-export async function tempSet(key: string, value: string, ttlSec: number): Promise<void> {
-  if (UPSTASH_URL && UPSTASH_TOKEN) await redis(["SET", key, value, "EX", String(ttlSec)]);
-  else memory.set(key, { value, expiresAt: Date.now() + ttlSec * 1000 });
-}
-
-export async function tempGet(key: string): Promise<string | null> {
-  if (UPSTASH_URL && UPSTASH_TOKEN) {
-    const result = await redis(["GET", key]);
-    return typeof result === "string" ? result : null;
-  }
-  const item = memory.get(key);
-  if (!item || item.expiresAt < Date.now()) return null;
-  return item.value;
-}
-
-export async function tempDel(key: string): Promise<void> {
-  if (UPSTASH_URL && UPSTASH_TOKEN) await redis(["DEL", key]);
-  else memory.delete(key);
 }
 
 /* ---------------------------------- السجل الفني ---------------------------------- */

@@ -6,8 +6,8 @@ import crypto from "node:crypto";
  * المتغيرات: LIVEKIT_URL (wss://…livekit.cloud)، LIVEKIT_API_KEY، LIVEKIT_API_SECRET،
  * وLIVEKIT_AGENT_NAME (افتراضيًا mohami-agent، ويجب أن يطابق الاسم في voice-agent/agent.py).
  *
- * الاتصال الصادر ينفّذه الوكيل نفسه (voice-agent) بعد استدعائه ببيانات الطلب، وهو النمط
- * الموثّق في LiveKit؛ هذا الملف يستدعي الوكيل فقط.
+ * لا اتصال صادر: المنصة تستقبل فقط. مكالمة واتساب الواردة تُسلَّم إلى LiveKit Connector
+ * (AcceptWhatsAppCall) فيدخل المتصل غرفة مع الوكيل.
  */
 
 export const AGENT_NAME = process.env.LIVEKIT_AGENT_NAME || "mohami-agent";
@@ -64,5 +64,38 @@ export function dispatchAgent(room: string, metadata: Record<string, string>) {
     "CreateDispatch",
     { video: { roomAdmin: true, room, roomCreate: true } },
     { agent_name: AGENT_NAME, room, metadata: JSON.stringify(metadata) },
+  );
+}
+
+/**
+ * يقبل مكالمة واتساب واردة: LiveKit يرد على Meta بجواب SDP ويُدخل المتصل غرفة جديدة
+ * مع الوكيل. رمز واتساب يُمرَّر إلى LiveKit لأنه هو من يخاطب Meta لقبول المكالمة.
+ */
+export function acceptWhatsAppCall(callId: string, sdp: string, room: string) {
+  return twirp(
+    "Connector",
+    "AcceptWhatsAppCall",
+    { video: { roomCreate: true } },
+    {
+      whatsapp_phone_number_id: process.env.WHATSAPP_PHONE_ID,
+      whatsapp_api_key: process.env.WHATSAPP_TOKEN,
+      whatsapp_cloud_api_version: process.env.WHATSAPP_CALL_API_VERSION || "26.0",
+      whatsapp_call_id: callId,
+      sdp: { type: "offer", sdp },
+      room_name: room,
+      agents: [{ agent_name: AGENT_NAME, metadata: JSON.stringify({ mode: "whatsapp" }) }],
+      participant_identity: "caller",
+      participant_name: "caller",
+    },
+  );
+}
+
+/** المتصل أنهى المكالمة من واتساب: نغلق الجلسة في LiveKit فورًا */
+export function disconnectWhatsAppCall(callId: string) {
+  return twirp(
+    "Connector",
+    "DisconnectWhatsAppCall",
+    { video: { roomCreate: true } },
+    { whatsapp_call_id: callId, whatsapp_api_key: process.env.WHATSAPP_TOKEN, disconnect_reason: "USER_INITIATED" },
   );
 }

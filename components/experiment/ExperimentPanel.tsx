@@ -15,8 +15,6 @@ interface Info {
   livekitReady: boolean;
 }
 
-const REASONS = ["حضانة", "نفقة", "طلاق أو خلع", "زواج", "مواريث أو وصية", "إثبات أو إجراءات", "أخرى"];
-
 async function post(url: string, body: unknown): Promise<{ ok: boolean; error?: string; [key: string]: unknown }> {
   try {
     const response = await fetch(url, {
@@ -41,21 +39,33 @@ export default function ExperimentPanel({ open, info }: { open: boolean; info: I
           أرسل رسالة نصية أو صوتية إلى الرقم، ويرد المساعد كتابةً. كل رسالة تُجاب وحدها (لا نحفظ المحادثة).
         </p>
         <Number value={info.whatsappNumber} ready={info.whatsappReady} />
+        <p className="mt-3 text-sm leading-relaxed text-slate-600">
+          أو اتصل به مكالمة واتساب صوتية (مجانية) من الجوال، فيرد عليك بصوته.
+        </p>
+        {info.whatsappNumber && (
+          <a
+            href={`https://wa.me/call/${info.whatsappNumber.replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-brand mt-3 inline-block px-5 py-2"
+          >
+            اتصل عبر واتساب
+          </a>
+        )}
       </section>
       <section className="card-soft p-5">
         <h2 className="text-base font-extrabold text-slate-900">2. مكالمة هاتفية واردة</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          اتصل على الرقم التجريبي (أجنبي)، ويرد المساعد بصوته. قاطعه متى شئت فيسكت.
+          اتصل على الرقم التجريبي، ويرد المساعد بصوته. قاطعه متى شئت فيسكت. الرقم أمريكي: المكالمة مجانية على المنصة لكن شركة اتصالاتك تحسبها عليك مكالمة دولية.
         </p>
         <Number value={info.inboundNumber} ready={info.livekitReady} />
       </section>
-      <Callback ready={info.whatsappReady && info.livekitReady} />
       <VideoCall ready={info.livekitReady} />
       <section className="card-soft p-5">
         <h2 className="text-base font-extrabold text-slate-900">Google Meet</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          مؤجَّل: واجهة Meet الرسمية للوسائط تتوقف في يناير 2027 ولا تسمح للمساعد بالكلام، والبدائل مدفوعة أو
-          هشة. التفاصيل والخيارات في EXPERIMENT-VOICE.md.
+          غير متاح مجانًا: لا توجد واجهة رسمية من Google تسمح لمساعد آلي أن ينضم ويتكلم، والبدائل مدفوعة. مكالمة
+          الموقع أعلاه تؤدي الغرض نفسه. التفاصيل في EXPERIMENT-VOICE.md.
         </p>
       </section>
     </div>
@@ -123,91 +133,8 @@ function PrivacyNotice() {
           نتيجة، أخطاء).
         </li>
         <li>ما لا نحتفظ به: رقمك بصيغته، التسجيلات الصوتية، ونصوص المحادثات.</li>
-        <li>لا اتصال صادر إلا لمن طلبه بنفسه من هذه الصفحة وتحقق من رقمه برمز.</li>
+        <li>المنصة لا تتصل بأحد: أنت من يبدأ المكالمة أو الرسالة دائمًا.</li>
       </ul>
-    </section>
-  );
-}
-
-function Callback({ ready }: { ready: boolean }) {
-  const [phone, setPhone] = useState("");
-  const [reason, setReason] = useState(REASONS[0]);
-  const [code, setCode] = useState("");
-  const [stage, setStage] = useState<"form" | "code" | "done">("form");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const request = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    const result = await post("/api/experiment/callback", { action: "request", phone, reason });
-    setBusy(false);
-    setMessage(result.ok ? "أرسلنا رمز التحقق إلى واتساب الرقم." : (result.error ?? "تعذّر الطلب."));
-    if (result.ok) setStage("code");
-  };
-  const verify = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    const result = await post("/api/experiment/callback", { action: "verify", phone, code });
-    setBusy(false);
-    setMessage(result.ok ? "تم. سيتصل بك المساعد خلال دقيقة من رقم أجنبي." : (result.error ?? "تعذّر التحقق."));
-    if (result.ok) setStage("done");
-  };
-
-  return (
-    <section className="card-soft p-5">
-      <h2 className="text-base font-extrabold text-slate-900">3. اتصلوا بي</h2>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
-        اكتب رقم جوالك (ضمن قائمة التجربة)، يصلك رمز تحقق في واتساب، ثم يتصل بك المساعد.
-      </p>
-      {stage === "form" && (
-        <form onSubmit={request} className="mt-4 space-y-3">
-          <label className="block text-sm font-bold text-slate-800">
-            رقم الجوال
-            <input
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              inputMode="tel"
-              dir="ltr"
-              placeholder="05XXXXXXXX"
-              className="field mt-1 w-full"
-              required
-            />
-          </label>
-          <label className="block text-sm font-bold text-slate-800">
-            الموضوع
-            <select value={reason} onChange={(event) => setReason(event.target.value)} className="field mt-1 w-full">
-              {REASONS.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" disabled={busy || !ready} className="btn-brand px-6 py-2.5 disabled:opacity-50">
-            أرسل رمز التحقق
-          </button>
-        </form>
-      )}
-      {stage === "code" && (
-        <form onSubmit={verify} className="mt-4 space-y-3">
-          <label className="block text-sm font-bold text-slate-800">
-            رمز التحقق (6 أرقام)
-            <input
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              inputMode="numeric"
-              dir="ltr"
-              maxLength={6}
-              className="field mt-1 w-full"
-              required
-            />
-          </label>
-          <button type="submit" disabled={busy} className="btn-brand px-6 py-2.5 disabled:opacity-50">
-            تحقّق واتصل بي
-          </button>
-        </form>
-      )}
-      {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
-      {!ready && <p className="mt-3 text-xs text-amber-800">يحتاج مفاتيح واتساب وLiveKit.</p>}
     </section>
   );
 }
@@ -297,7 +224,7 @@ function VideoCall({ ready }: { ready: boolean }) {
 
   return (
     <section className="card-soft p-5">
-      <h2 className="text-base font-extrabold text-slate-900">4. مكالمة مرئية داخل الموقع</h2>
+      <h2 className="text-base font-extrabold text-slate-900">3. مكالمة مرئية داخل الموقع</h2>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         تتحدث مع المساعد مباشرة. يظهر المساعد بهوية المنصة المتحركة لا بوجه بشري، وكاميرتك معاينة لك فقط ولا تُرسل.
       </p>

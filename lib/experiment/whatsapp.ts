@@ -5,8 +5,10 @@ import { safeEqual } from "@/lib/experiment/core";
  * WhatsApp Cloud API (Meta) — إرسال واستقبال للميزة التجريبية.
  *
  * المتغيرات: WHATSAPP_TOKEN (رمز الوصول)، WHATSAPP_PHONE_ID (معرّف رقم الأعمال)،
- * WHATSAPP_APP_SECRET (لتوقيع الويب هوك)، WHATSAPP_VERIFY_TOKEN (للتحقق الأولي)،
- * WHATSAPP_OTP_TEMPLATE و WHATSAPP_OTP_LANG (قالب رمز التحقق المعتمد).
+ * WHATSAPP_APP_SECRET (لتوقيع الويب هوك)، WHATSAPP_VERIFY_TOKEN (للتحقق الأولي).
+ *
+ * المكالمات: الاشتراك في حقل calls يوصل حدث connect ومعه عرض SDP؛ يُسلَّم إلى
+ * LiveKit (lib/experiment/livekit.ts) ليجيب الوكيل الصوتي. مكالمات المستخدم مجانية.
  */
 
 const GRAPH = "https://graph.facebook.com/v27.0";
@@ -46,22 +48,6 @@ async function send(payload: Record<string, unknown>): Promise<boolean> {
 
 export function sendText(to: string, body: string): Promise<boolean> {
   return send({ to, type: "text", text: { preview_url: false, body: body.slice(0, 3500) } });
-}
-
-/** رمز التحقق بقالب «authentication» بزر نسخ الرمز (الرمز يُكرَّر مرتين كما تشترط Meta) */
-export function sendOtp(to: string, code: string): Promise<boolean> {
-  return send({
-    to,
-    type: "template",
-    template: {
-      name: process.env.WHATSAPP_OTP_TEMPLATE || "verification_code",
-      language: { code: process.env.WHATSAPP_OTP_LANG || "ar" },
-      components: [
-        { type: "body", parameters: [{ type: "text", text: code }] },
-        { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
-      ],
-    },
-  });
 }
 
 /** تنزيل رسالة صوتية: معرّف الوسيط ← رابط مؤقت (5 دقائق) ← الملف */
@@ -110,6 +96,44 @@ export function parseInbound(payload: unknown): InboundMessage[] {
         // المستخدمون بأسماء مستخدمين قد لا يظهر رقمهم؛ التجربة للأرقام فقط
         if (!m.id || !m.from || !m.type) continue;
         out.push({ id: m.id, from: m.from, type: m.type, text: m.text?.body, audioId: m.audio?.id });
+      }
+    }
+  }
+  return out;
+}
+
+export interface InboundCall {
+  id: string;
+  from: string;
+  event: string;
+  direction: string;
+  sdp?: string;
+}
+
+/** أحداث المكالمات (حقل calls): connect يحمل عرض SDP، وterminate عند إنهاء المتصل */
+export function parseCalls(payload: unknown): InboundCall[] {
+  const out: InboundCall[] = [];
+  const entries = (payload as { entry?: unknown[] })?.entry;
+  if (!Array.isArray(entries)) return out;
+  for (const entry of entries) {
+    for (const change of (entry as { changes?: unknown[] })?.changes ?? []) {
+      const value = (change as { value?: { calls?: unknown[] } })?.value;
+      for (const raw of value?.calls ?? []) {
+        const c = raw as {
+          id?: string;
+          from?: string;
+          event?: string;
+          direction?: string;
+          session?: { sdp_type?: string; sdp?: string };
+        };
+        if (!c.id || !c.event) continue;
+        out.push({
+          id: c.id,
+          from: c.from ?? "",
+          event: c.event,
+          direction: c.direction ?? "",
+          sdp: c.session?.sdp_type === "offer" ? c.session.sdp : undefined,
+        });
       }
     }
   }
